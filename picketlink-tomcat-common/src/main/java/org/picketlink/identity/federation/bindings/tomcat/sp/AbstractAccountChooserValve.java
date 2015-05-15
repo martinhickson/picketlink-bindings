@@ -31,13 +31,12 @@ import org.picketlink.common.PicketLinkLoggerFactory;
 import org.picketlink.common.constants.GeneralConstants;
 import org.picketlink.common.util.StringUtil;
 import org.picketlink.identity.federation.bindings.tomcat.sp.plugins.PropertiesAccountMapProvider;
+import org.picketlink.identity.federation.web.config.IdentityURLConfigurationProvider;
 
 import javax.servlet.RequestDispatcher;
-import javax.servlet.ServletContext;
 import javax.servlet.ServletException;
 import javax.servlet.http.Cookie;
 import java.io.IOException;
-import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -66,8 +65,8 @@ public abstract class AbstractAccountChooserValve extends ValveBase implements L
 
     protected ConcurrentHashMap<String, String> idpMap = new ConcurrentHashMap<String, String>();
 
-    private String accountIDPMapProviderName = PropertiesAccountMapProvider.class.getName();
-    protected AccountIDPMapProvider accountIDPMapProvider;
+    private String identityURLConfigProviderName = PropertiesAccountMapProvider.class.getName();
+    protected IdentityURLConfigurationProvider identityURLConfigurationProvider;
 
     /**
      * Sets the account chooser cookie expiry. By default, we choose -1 which means
@@ -83,17 +82,17 @@ public abstract class AbstractAccountChooserValve extends ValveBase implements L
     @Override
     public void start() throws LifecycleException {
         try {
-            Class<?> clazz = SecurityActions.loadClass(getClass(), this.accountIDPMapProviderName);
+            Class<?> clazz = SecurityActions.loadClass(getClass(), this.identityURLConfigProviderName);
 
             if (clazz == null) {
-                throw logger.classNotLoadedError(this.accountIDPMapProviderName);
+                throw logger.classNotLoadedError(this.identityURLConfigProviderName);
             }
 
-            accountIDPMapProvider = (AccountIDPMapProvider) clazz.newInstance();
+            identityURLConfigurationProvider = (IdentityURLConfigurationProvider) clazz.newInstance();
 
             Context context = (Context) getContainer();
-            accountIDPMapProvider.setServletContext(context.getServletContext());
-            idpMap.putAll(accountIDPMapProvider.getIDPMap());
+            identityURLConfigurationProvider.setServletContext(context.getServletContext());
+            idpMap.putAll(identityURLConfigurationProvider.getIDPMap());
         } catch (Exception e) {
             throw new LifecycleException("Could not start " + getClass().getName() + ".", e);
         }
@@ -152,7 +151,18 @@ public abstract class AbstractAccountChooserValve extends ValveBase implements L
      * @param idpMapProviderName
      */
     public void setAccountIDPMapProvider(String idpMapProviderName){
-        this.accountIDPMapProviderName = idpMapProviderName;
+        this.identityURLConfigProviderName = idpMapProviderName;
+    }
+
+    /**
+     * Set the fully qualified name of the implementation of
+     * {@link org.picketlink.identity.federation.web.config.IdentityURLConfigurationProvider}
+     *
+     * Default: {@link org.picketlink.identity.federation.web.config.PropertiesIdentityURLProvider}
+     * @param idpMapProviderName
+     */
+    public void setIdentityURLConfigurationProvider(String idpMapProviderName){
+        this.identityURLConfigProviderName = idpMapProviderName;
     }
 
     /**
@@ -171,7 +181,7 @@ public abstract class AbstractAccountChooserValve extends ValveBase implements L
         Session session = request.getSessionInternal();
 
         if(idpMap.isEmpty()){
-            idpMap.putAll(accountIDPMapProvider.getIDPMap());
+            idpMap.putAll(identityURLConfigurationProvider.getIDPMap());
         }
 
         String sessionState = (String) session.getNote(STATE);
@@ -324,23 +334,8 @@ public abstract class AbstractAccountChooserValve extends ValveBase implements L
     protected abstract boolean restoreRequest(Request request, Session session) throws IOException;
 
     /**
-     * Interface for obtaining the Identity Provider Mapping
+     * <p>For EAP 6 backward compatibility.</p>
      */
-    public interface AccountIDPMapProvider{
-        /**
-         * Set the servlet context for resources on web classpath
-         * @param servletContext
-         */
-        void setServletContext(ServletContext servletContext);
-        /**
-         * Set a {@link java.lang.ClassLoader} for the Provider
-         * @param classLoader
-         */
-        void setClassLoader(ClassLoader classLoader);
-        /**
-         * Get a map of AccountName versus IDP URLs
-         * @return
-         */
-        Map<String,String> getIDPMap() throws IOException;
+    public interface AccountIDPMapProvider extends IdentityURLConfigurationProvider {
     }
 }

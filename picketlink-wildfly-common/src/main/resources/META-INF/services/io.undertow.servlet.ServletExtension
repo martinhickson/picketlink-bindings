@@ -1,0 +1,2 @@
+org.picketlink.identity.federation.bindings.wildfly.sp.SPServletExtension
+org.picketlink.identity.federation.bindings.wildfly.idp.IDPServletExtension

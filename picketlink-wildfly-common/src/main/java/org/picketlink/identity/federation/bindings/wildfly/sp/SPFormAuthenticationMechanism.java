@@ -71,7 +71,6 @@ import org.picketlink.identity.federation.saml.v2.metadata.EntitiesDescriptorTyp
 import org.picketlink.identity.federation.saml.v2.metadata.EntityDescriptorType;
 import org.picketlink.identity.federation.saml.v2.metadata.IDPSSODescriptorType;
 import org.picketlink.identity.federation.saml.v2.metadata.KeyDescriptorType;
-import org.picketlink.identity.federation.web.config.AbstractSAMLConfigurationProvider;
 import org.picketlink.identity.federation.web.core.HTTPContext;
 import org.picketlink.identity.federation.web.core.SessionManager;
 import org.picketlink.identity.federation.web.process.ServiceProviderBaseProcessor;
@@ -93,8 +92,6 @@ import javax.servlet.http.HttpServletResponse;
 import javax.servlet.http.HttpSession;
 import javax.servlet.http.HttpSessionListener;
 import javax.xml.crypto.dsig.CanonicalizationMethod;
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URL;
@@ -112,9 +109,10 @@ import java.util.TimerTask;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
-import static org.picketlink.common.constants.GeneralConstants.CONFIG_FILE_LOCATION;
 import static org.picketlink.common.util.StringUtil.isNotNull;
 import static org.picketlink.common.util.StringUtil.isNullOrEmpty;
+import static org.picketlink.identity.federation.web.util.ConfigurationUtil.getAuditHelper;
+import static org.picketlink.identity.federation.web.util.ConfigurationUtil.getConfiguration;
 
 /**
  * PicketLink SP Authentication Mechanism that falls back to FORM
@@ -156,7 +154,7 @@ public class SPFormAuthenticationMechanism extends ServletFormAuthenticationMech
 
     protected SPType spConfiguration = null;
 
-    protected PicketLinkType picketLinkConfiguration = null;
+    protected PicketLinkType configuration = null;
 
     protected String serviceURL = null;
 
@@ -180,12 +178,17 @@ public class SPFormAuthenticationMechanism extends ServletFormAuthenticationMech
     protected TrustKeyManager keyManager;
     private IDPSSODescriptorType idpMetadata;
 
-    public SPFormAuthenticationMechanism(FormParserFactory parserFactory, String name, String loginPage, String errorPage, ServletContext servletContext, SAMLConfigurationProvider configProvider, PicketLinkAuditHelper auditHelper) {
+    public SPFormAuthenticationMechanism(FormParserFactory parserFactory, String name, String loginPage, String errorPage, ServletContext servletContext, PicketLinkType configuration, PicketLinkAuditHelper auditHelper) {
         super(parserFactory, name, loginPage, errorPage);
         this.servletContext = servletContext;
-        this.configProvider = configProvider;
+        this.configuration = configuration;
+        this.spConfiguration = (SPType) configuration.getIdpOrSP();
         this.auditHelper = auditHelper;
         startPicketLink();
+    }
+
+    public SPFormAuthenticationMechanism(FormParserFactory parserFactory, String name, String loginPage, String errorPage, ServletContext servletContext, SAMLConfigurationProvider configProvider, PicketLinkAuditHelper auditHelper) throws ProcessingException {
+        this(parserFactory, name, loginPage, errorPage, servletContext, configProvider.getPicketLinkConfiguration(), auditHelper);
     }
 
     @Override
@@ -195,8 +198,13 @@ public class SPFormAuthenticationMechanism extends ServletFormAuthenticationMech
         HttpServletResponse response = (HttpServletResponse) servletRequestContext.getServletResponse();
         String samlRequest = request.getParameter(GeneralConstants.SAML_REQUEST_KEY);
         HttpSession session = request.getSession(true);
+        Principal principal = request.getUserPrincipal();
 
         try {
+            if (isAjaxRequest(request) && principal == null) {
+                return new ChallengeResult(false, HttpServletResponse.SC_FORBIDDEN);
+            }
+
             // General User Request
             if (!isNotNull(samlRequest) && !response.isCommitted()) {
                 session.setAttribute(INITIAL_LOCATION_STORED, true);
@@ -336,11 +344,17 @@ public class SPFormAuthenticationMechanism extends ServletFormAuthenticationMech
         SAML2HandlerResponse saml2HandlerResponse = null;
         try {
             ServiceProviderBaseProcessor baseProcessor = new ServiceProviderBaseProcessor(postBinding, serviceURL,
-                    this.picketLinkConfiguration, this.idpMetadata);
+                    this.configuration, this.idpMetadata);
             if (issuerID != null)
                 baseProcessor.setIssuer(issuerID);
 
-            baseProcessor.setIdentityURL(identityURL);
+            // If the user has a different desired idp
+            String idp = (String) request.getAttribute(org.picketlink.identity.federation.web.constants.GeneralConstants.DESIRED_IDP);
+            if (StringUtil.isNotNull(idp)) {
+                baseProcessor.setIdentityURL(idp);
+            } else {
+                baseProcessor.setIdentityURL(getIdentityURL());
+            }
             baseProcessor.setAuditHelper(auditHelper);
 
             saml2HandlerResponse = baseProcessor.process(httpContext, handlers, chainLock);
@@ -368,15 +382,17 @@ public class SPFormAuthenticationMechanism extends ServletFormAuthenticationMech
                 if (saveRestoreRequest) {
                     storeInitialLocation(httpServerExchange);
                 }
-                if (enableAudit) {
-                    PicketLinkAuditEvent auditEvent = new PicketLinkAuditEvent(AuditLevel.INFO);
-                    auditEvent.setType(PicketLinkAuditEventType.REQUEST_TO_IDP);
-                    auditEvent.setWhoIsAuditing(servletContext.getContextPath());
-                    auditHelper.audit(auditEvent);
-                }
+
+                PicketLinkAuditEvent auditEvent = new PicketLinkAuditEvent(AuditLevel.INFO);
+
+                auditEvent.setType(PicketLinkAuditEventType.REQUEST_TO_IDP);
+                auditEvent.setWhoIsAuditing(servletContext.getContextPath());
+
+                audit(auditEvent);
+
                 serviceProviderSAMLWorkflow.sendRequestToIDP(destination, samlResponseDocument, relayState, response, willSendRequest,
                         destinationQueryStringWithSignature, isHttpPostBinding());
-                return new ChallengeResult(true);
+                return new ChallengeResult(false);
             } catch (Exception e) {
                 logger.samlSPHandleRequestError(e);
                 throw logger.samlSPProcessingExceptionError(e);
@@ -450,16 +466,16 @@ public class SPFormAuthenticationMechanism extends ServletFormAuthenticationMech
 
         try {
             ServiceProviderSAMLRequestProcessor requestProcessor = new ServiceProviderSAMLRequestProcessor(
-                    request.getMethod().equals("POST"), this.serviceURL, this.picketLinkConfiguration, this.idpMetadata);
+                    request.getMethod().equals("POST"), this.serviceURL, this.configuration, this.idpMetadata);
             requestProcessor.setTrustKeyManager(keyManager);
             boolean result = requestProcessor.process(samlRequest, httpContext, handlers, chainLock);
 
-            if (enableAudit) {
-                PicketLinkAuditEvent auditEvent = new PicketLinkAuditEvent(AuditLevel.INFO);
-                auditEvent.setType(PicketLinkAuditEventType.REQUEST_FROM_IDP);
-                auditEvent.setWhoIsAuditing(servletContext.getContextPath());
-                auditHelper.audit(auditEvent);
-            }
+            PicketLinkAuditEvent auditEvent = new PicketLinkAuditEvent(AuditLevel.INFO);
+
+            auditEvent.setType(PicketLinkAuditEventType.REQUEST_FROM_IDP);
+            auditEvent.setWhoIsAuditing(servletContext.getContextPath());
+
+            audit(auditEvent);
 
             // If response is already commited, we need to stop with processing of HTTP request
             if (response.isCommitted())
@@ -506,7 +522,7 @@ public class SPFormAuthenticationMechanism extends ServletFormAuthenticationMech
 
         // deal with SAML response from IDP
         try {
-            ServiceProviderSAMLResponseProcessor responseProcessor = new ServiceProviderSAMLResponseProcessor(request.getMethod().equals("POST"), serviceURL, this.picketLinkConfiguration, this.idpMetadata);
+            ServiceProviderSAMLResponseProcessor responseProcessor = new ServiceProviderSAMLResponseProcessor(request.getMethod().equals("POST"), serviceURL, this.configuration, this.idpMetadata);
             if(auditHelper !=  null){
                 responseProcessor.setAuditHelper(auditHelper);
             }
@@ -565,13 +581,13 @@ public class SPFormAuthenticationMechanism extends ServletFormAuthenticationMech
                 //Register the principal with the request
                 register(securityContext, account);
 
-                if (enableAudit) {
-                    PicketLinkAuditEvent auditEvent = new PicketLinkAuditEvent(AuditLevel.INFO);
-                    auditEvent.setType(PicketLinkAuditEventType.RESPONSE_FROM_IDP);
-                    auditEvent.setSubjectName(username);
-                    auditEvent.setWhoIsAuditing(servletContext.getContextPath());
-                    auditHelper.audit(auditEvent);
-                }
+                PicketLinkAuditEvent auditEvent = new PicketLinkAuditEvent(AuditLevel.INFO);
+
+                auditEvent.setType(PicketLinkAuditEventType.RESPONSE_FROM_IDP);
+                auditEvent.setSubjectName(username);
+                auditEvent.setWhoIsAuditing(servletContext.getContextPath());
+
+                audit(auditEvent);
 
                 // Redirect the user to the originally requested URL
                 if (saveRestoreRequest) {
@@ -593,12 +609,14 @@ public class SPFormAuthenticationMechanism extends ServletFormAuthenticationMech
             Throwable t = pe.getCause();
             if (t != null && t instanceof AssertionExpiredException) {
                 logger.error("Assertion has expired. Asking IDP for reissue");
-                if (enableAudit) {
-                    PicketLinkAuditEvent auditEvent = new PicketLinkAuditEvent(AuditLevel.INFO);
-                    auditEvent.setType(PicketLinkAuditEventType.EXPIRED_ASSERTION);
-                    auditEvent.setAssertionID(((AssertionExpiredException) t).getId());
-                    auditHelper.audit(auditEvent);
-                }
+
+                PicketLinkAuditEvent auditEvent = new PicketLinkAuditEvent(AuditLevel.INFO);
+
+                auditEvent.setType(PicketLinkAuditEventType.EXPIRED_ASSERTION);
+                auditEvent.setAssertionID(((AssertionExpiredException) t).getId());
+
+                audit(auditEvent);
+
                 // Just issue a fresh request back to IDP
                 generalUserRequest(httpServerExchange,securityContext);
                 return AuthenticationMechanismOutcome.NOT_AUTHENTICATED;
@@ -658,6 +676,7 @@ public class SPFormAuthenticationMechanism extends ServletFormAuthenticationMech
             timer.scheduleAtFixedRate(new TimerTask() {
                 @Override
                 public void run() {
+                    reloadConfiguration();
                     processConfiguration();
                     initKeyProvider(servletContext);
                 }
@@ -678,8 +697,8 @@ public class SPFormAuthenticationMechanism extends ServletFormAuthenticationMech
         this.processConfiguration();
 
         try {
-            if (picketLinkConfiguration != null) {
-                handlers = picketLinkConfiguration.getHandlers();
+            if (configuration != null) {
+                handlers = configuration.getHandlers();
             } else {
                 // Get the handlers
                 String handlerConfigFileName = GeneralConstants.HANDLER_CONFIG_FILE_LOCATION;
@@ -695,11 +714,11 @@ public class SPFormAuthenticationMechanism extends ServletFormAuthenticationMech
             throw new RuntimeException(e);
         }
 
-        if (this.picketLinkConfiguration == null) {
-            this.picketLinkConfiguration = new PicketLinkType();
+        if (this.configuration == null) {
+            this.configuration = new PicketLinkType();
 
-            this.picketLinkConfiguration.setIdpOrSP(spConfiguration);
-            this.picketLinkConfiguration.setHandlers(handlers);
+            this.configuration.setIdpOrSP(spConfiguration);
+            this.configuration.setHandlers(handlers);
         }
 
         new SessionManager(servletContext, new SessionManager.InitializationCallback() {
@@ -779,104 +798,49 @@ public class SPFormAuthenticationMechanism extends ServletFormAuthenticationMech
         }
         return false;
     }
-    protected void processConfiguration() {
-        InputStream is = null;
 
-        if (isNullOrEmpty(this.configFile)) {
-            this.configFile = CONFIG_FILE_LOCATION;
-            is = servletContext.getResourceAsStream(this.configFile);
-        } else {
-            try {
-                is = new FileInputStream(this.configFile);
-            } catch (FileNotFoundException e) {
-                throw logger.samlIDPConfigurationError(e);
+    protected void processConfiguration() {
+        enableAudit = configuration.isEnableAudit();
+
+        //See if we have the system property enabled
+        if(!enableAudit){
+            String sysProp = SecurityActions.getSystemProperty(GeneralConstants.AUDIT_ENABLE, "NULL");
+            if(!"NULL".equals(sysProp)){
+                enableAudit = Boolean.parseBoolean(sysProp);
             }
         }
 
+        if (enableAudit && auditHelper == null) {
+            try {
+                auditHelper = getAuditHelper(servletContext);
+            } catch (Exception e) {
+                throw new RuntimeException("Could not create audit helper.", e);
+            }
+        }
+
+        processIdPMetadata(spConfiguration);
+
+        this.identityURL = spConfiguration.getIdentityURL();
+        this.serviceURL = spConfiguration.getServiceURL();
+        this.canonicalizationMethod = spConfiguration.getCanonicalizationMethod();
+
+        logger.samlSPSettingCanonicalizationMethod(canonicalizationMethod);
+        XMLSignatureUtil.setCanonicalizationMethodType(canonicalizationMethod);
+
+        logger.trace("Identity Provider URL=" + this.identityURL);
+    }
+
+    private void reloadConfiguration() {
         try {
-            // Work on the IDP Configuration
-            if (configProvider != null) {
-                try {
-                    if (is == null) {
-                        // Try the older version
-                        is = servletContext.getResourceAsStream(GeneralConstants.DEPRECATED_CONFIG_FILE_LOCATION);
-
-                        // Additionally parse the deprecated config file
-                        if (is != null && configProvider instanceof AbstractSAMLConfigurationProvider) {
-                            ((AbstractSAMLConfigurationProvider) configProvider).setConfigFile(is);
-                        }
-                    } else {
-                        // Additionally parse the consolidated config file
-                        if (is != null && configProvider instanceof AbstractSAMLConfigurationProvider) {
-                            ((AbstractSAMLConfigurationProvider) configProvider).setConsolidatedConfigFile(is);
-                        }
-                    }
-
-                    picketLinkConfiguration = configProvider.getPicketLinkConfiguration();
-                    spConfiguration = configProvider.getSPConfiguration();
-                } catch (ProcessingException e) {
-                    throw logger.samlSPConfigurationError(e);
-                } catch (ParsingException e) {
-                    throw logger.samlSPConfigurationError(e);
-                }
+            if (this.configProvider != null) {
+                this.configuration = this.configProvider.getPicketLinkConfiguration();
             } else {
-                if (is != null) {
-                    try {
-                        picketLinkConfiguration = ConfigurationUtil.getConfiguration(is);
-                        spConfiguration = (SPType) picketLinkConfiguration.getIdpOrSP();
-                    } catch (ParsingException e) {
-                        logger.trace(e);
-                        throw logger.samlSPConfigurationError(e);
-                    }
-                } else {
-                    is = servletContext.getResourceAsStream(GeneralConstants.DEPRECATED_CONFIG_FILE_LOCATION);
-                    if (is == null)
-                        throw logger.configurationFileMissing(configFile);
-                    spConfiguration = ConfigurationUtil.getSPConfiguration(is);
-                }
+                this.configuration = getConfiguration(this.servletContext);
             }
 
-            //Close the InputStream as we no longer need it
-            if(is != null){
-                try {
-                    is.close();
-                } catch (IOException e) {
-                    //ignore
-                }
-            }
-
-            if (this.picketLinkConfiguration != null) {
-                enableAudit = picketLinkConfiguration.isEnableAudit();
-
-                //See if we have the system property enabled
-                if(!enableAudit){
-                    String sysProp = SecurityActions.getSystemProperty(GeneralConstants.AUDIT_ENABLE, "NULL");
-                    if(!"NULL".equals(sysProp)){
-                        enableAudit = Boolean.parseBoolean(sysProp);
-                    }
-                }
-
-                if (enableAudit) {
-                    if (auditHelper == null) {
-                        String securityDomainName = PicketLinkAuditHelper.getSecurityDomainName(servletContext);
-
-                        auditHelper = new PicketLinkAuditHelper(securityDomainName);
-                    }
-                }
-            }
-
-            processIdPMetadata(spConfiguration);
-
-            this.identityURL = spConfiguration.getIdentityURL();
-            this.serviceURL = spConfiguration.getServiceURL();
-            this.canonicalizationMethod = spConfiguration.getCanonicalizationMethod();
-
-            logger.samlSPSettingCanonicalizationMethod(canonicalizationMethod);
-            XMLSignatureUtil.setCanonicalizationMethodType(canonicalizationMethod);
-
-            logger.trace("Identity Provider URL=" + this.identityURL);
+            this.spConfiguration = (SPType) this.configuration.getIdpOrSP();
         } catch (Exception e) {
-            throw new RuntimeException(e);
+            throw new RuntimeException("Error while reloading configuration.", e);
         }
     }
 
@@ -1128,13 +1092,13 @@ public class SPFormAuthenticationMechanism extends ServletFormAuthenticationMech
                 //Register the principal with the request
                 register(securityContext, account);
 
-                if (enableAudit) {
-                    PicketLinkAuditEvent auditEvent = new PicketLinkAuditEvent(AuditLevel.INFO);
-                    auditEvent.setType(PicketLinkAuditEventType.RESPONSE_FROM_IDP);
-                    auditEvent.setSubjectName(username);
-                    auditEvent.setWhoIsAuditing(servletContext.getContextPath());
-                    auditHelper.audit(auditEvent);
-                }
+                PicketLinkAuditEvent auditEvent = new PicketLinkAuditEvent(AuditLevel.INFO);
+
+                auditEvent.setType(PicketLinkAuditEventType.RESPONSE_FROM_IDP);
+                auditEvent.setSubjectName(username);
+                auditEvent.setWhoIsAuditing(servletContext.getContextPath());
+
+                audit(auditEvent);
 
                 return AuthenticationMechanismOutcome.AUTHENTICATED;
             } catch (Exception e) {
@@ -1145,4 +1109,23 @@ public class SPFormAuthenticationMechanism extends ServletFormAuthenticationMech
         return AuthenticationMechanismOutcome.NOT_AUTHENTICATED;
     }
 
+    public void audit(PicketLinkAuditEvent event) {
+        if (this.enableAudit) {
+            this.auditHelper.audit(event);
+        }
+    }
+
+    private boolean isAjaxRequest(HttpServletRequest request) {
+        String requestedWithHeader = request.getHeader(GeneralConstants.HTTP_HEADER_X_REQUESTED_WITH);
+        return requestedWithHeader != null && "XMLHttpRequest".equalsIgnoreCase(requestedWithHeader);
+    }
+
+    /**
+     * Get the Identity URL
+     *
+     * @return
+     */
+    public String getIdentityURL() {
+        return this.spConfiguration.getIdentityURL();
+    }
 }

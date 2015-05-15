@@ -264,6 +264,11 @@ public class SPInitiatedSSOWorkflowTestCase extends UndertowTestCase {
             temp = temp.replace("/WEB-INF","");
 
             URL url = getClass().getClassLoader().getResource(basePath+temp);
+
+            if (url == null) {
+                return null;
+            } 
+
             return new URLResource(url, url.openConnection(), path);
         }
 

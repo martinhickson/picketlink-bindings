@@ -29,6 +29,11 @@
       <artifactId>picketlink-federation</artifactId>
       <version>${project.version}</version>
     </dependency>
+    <dependency>
+      <groupId>org.picketlink</groupId>
+      <artifactId>picketlink-config</artifactId>
+      <version>${project.version}</version>
+    </dependency>
 
     <dependency>
       <groupId>org.jboss.logging</groupId>
