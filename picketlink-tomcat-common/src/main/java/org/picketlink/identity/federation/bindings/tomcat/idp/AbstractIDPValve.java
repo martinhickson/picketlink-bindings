@@ -789,6 +789,18 @@ public abstract class AbstractIDPValve extends ValveBase {
             RequestAbstractType requestAbstractType = (RequestAbstractType) samlObject;
             String issuer = requestAbstractType.getIssuer().getValue();
 
+            /*
+            // get the destination attribute for the response
+            if (requestAbstractType instanceof AuthnRequestType) {
+                AuthnRequestType authnRequestType = (AuthnRequestType) requestAbstractType;
+                URI senderURL = authnRequestType.getSenderURL();
+
+                if(senderURL != null) {
+                    responseDestination = senderURL.toString();
+                }
+            }
+            */
+
             IssuerInfoHolder idpIssuer = new IssuerInfoHolder(getIdentityURL());
             ProtocolContext protocolContext = new HTTPContext(request, response, getContext().getServletContext());
             // Create the request/response
@@ -892,7 +904,7 @@ public abstract class AbstractIDPValve extends ValveBase {
             if (destination == null && samlObject instanceof AuthnRequestType) {
                 AuthnRequestType authRequest = (AuthnRequestType) samlObject;
 
-                destination = authRequest.getAssertionConsumerServiceURL().toASCIIString();
+                destination = authRequest.getSenderURL().toASCIIString();
             }
 
             // if destination is still empty redirect the user to the identity url. If the user is already authenticated he
