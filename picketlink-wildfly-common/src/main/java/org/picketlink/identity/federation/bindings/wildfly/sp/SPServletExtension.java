@@ -30,26 +30,117 @@ import io.undertow.servlet.api.DeploymentInfo;
 import javax.servlet.ServletContext;
 import javax.servlet.http.HttpServletRequest;
 import java.util.Map;
+import org.picketlink.common.PicketLinkLogger;
+import org.picketlink.common.PicketLinkLoggerFactory;
+import org.picketlink.common.exceptions.ConfigurationException;
+import org.picketlink.common.exceptions.ProcessingException;
+import org.picketlink.config.federation.IdentityURLProviderType;
+import org.picketlink.config.federation.PicketLinkType;
+import org.picketlink.config.federation.ProviderType;
+import org.picketlink.config.federation.SPType;
+import org.picketlink.identity.federation.core.audit.PicketLinkAuditHelper;
+import org.picketlink.identity.federation.web.util.ConfigurationUtil;
+import org.picketlink.identity.federation.web.util.SAMLConfigurationProvider;
+
+import static org.picketlink.identity.federation.web.util.ConfigurationUtil.getConfiguration;
 
 /**
  *
  * <p>{@link io.undertow.servlet.ServletExtension} that enables the SAML authentication mechanism for service provider deployments.</p>
  *
- * <p>In order to get the extension properly configured, deployments must provide a <code>META-INF/services//META-INF/services/io.undertow.servlet.ServletExtension</code>
- * file in <code>WEB-INF/classes</code>.</p>
- *
  * @author Pedro Igor
  */
 public class SPServletExtension implements ServletExtension {
 
-    @Override
-    public void handleDeployment(DeploymentInfo deploymentInfo, final ServletContext servletContext) {
-        deploymentInfo.addAuthenticationMechanism(HttpServletRequest.FORM_AUTH, new AuthenticationMechanismFactory() {
-            @Override
-            public AuthenticationMechanism create(String mechanismName, FormParserFactory formParserFactory, Map<String, String> properties) {
-                return new SPFormAuthenticationMechanism(formParserFactory, mechanismName, properties.get(LOGIN_PAGE), properties.get(ERROR_PAGE), servletContext);
-            }
-        });
+    private static final PicketLinkLogger LOGGER = PicketLinkLoggerFactory.getLogger();
 
+    private final SAMLConfigurationProvider configurationProvider;
+    private final PicketLinkAuditHelper auditHelper;
+
+    public SPServletExtension(SAMLConfigurationProvider configurationProvider, PicketLinkAuditHelper auditHelper) {
+        this.configurationProvider = configurationProvider;
+        this.auditHelper = auditHelper;
+    }
+
+    public SPServletExtension() {
+        this(null, null);
+    }
+
+    @Override
+    public void handleDeployment(final DeploymentInfo deploymentInfo, final ServletContext servletContext) {
+        LOGGER.debug("Processing PicketLink Extension [" + getClass() + "].");
+
+        try {
+            final PicketLinkType configuration;
+            final SAMLConfigurationProvider configurationProvider = getConfigurationProvider(servletContext);
+
+            if (configurationProvider != null) {
+                configuration = configurationProvider.getPicketLinkConfiguration();
+            } else {
+                configuration = getConfiguration(servletContext);
+            }
+
+            if (configuration == null) {
+                // we just ignore if the configuration was not found. This extension can be manually added by the subsystem,
+                // in WildFly. In this case we don't have a configuration file inside deployments but the a configuration provided
+                // by the subsystem's custom config provider.
+                // Undertow subsystem will try to load this extension and that will cause an error if the config file is not inside
+                // the deployment. So we just ignore and log a message.
+                LOGGER.debug("No configuration found for deployment [" + deploymentInfo.getDeploymentName() + "].");
+                return;
+            }
+
+            ProviderType providerType = configuration.getIdpOrSP();
+
+            if (SPType.class.isInstance(providerType)) {
+                LOGGER.debug("Configuring deployment [" + deploymentInfo.getDeploymentName() + "] as a SAML Service Provider.");
+
+                deploymentInfo.addAuthenticationMechanism(HttpServletRequest.FORM_AUTH, new AuthenticationMechanismFactory() {
+                    @Override
+                    public AuthenticationMechanism create(String mechanismName, FormParserFactory formParserFactory, Map<String, String> properties) {
+                        try {
+                            String loginPage = properties.get(LOGIN_PAGE);
+                            String errorPage = properties.get(ERROR_PAGE);
+                            PicketLinkAuditHelper auditHelper = getAuditHelper(configuration, servletContext);
+
+                            if (configurationProvider != null) {
+                                return new SPFormAuthenticationMechanism(formParserFactory, mechanismName, loginPage, errorPage, servletContext, configurationProvider, auditHelper);
+                            }
+
+                            return new SPFormAuthenticationMechanism(formParserFactory, mechanismName, loginPage, errorPage, servletContext, configuration, auditHelper);
+                        } catch (ProcessingException e) {
+                            throw new RuntimeException("Could not create SAML Authentication Mechanism for deployment [" + deploymentInfo.getDeploymentName() + "].", e);
+                        }
+                    }
+                });
+
+                SPType spType = (SPType) providerType;
+                IdentityURLProviderType identityURLProvider = spType.getIdentityURLProvider();
+
+                if (identityURLProvider != null) {
+                    deploymentInfo.addOuterHandlerChainWrapper(IdentityURLProviderHandler.wrapper(spType, servletContext));
+                }
+            }
+        } catch (ProcessingException e) {
+            throw new RuntimeException("Error configuring PicketLink SAML extension [" + getClass() + "] to deployment [" + deploymentInfo.getDeploymentName()  + "].", e);
+        } catch (ConfigurationException e) {
+            throw new RuntimeException("Could not load PicketLink configuration for deployment [" + deploymentInfo.getDeploymentName()  + "].", e);
+        }
+    }
+
+    private SAMLConfigurationProvider getConfigurationProvider(ServletContext servletContext) {
+        if (this.configurationProvider == null) {
+            return ConfigurationUtil.getConfigurationProvider(servletContext);
+        }
+
+        return this.configurationProvider;
+    }
+
+    private PicketLinkAuditHelper getAuditHelper(PicketLinkType configuration, ServletContext servletContext) {
+        if (configuration.isEnableAudit() && this.auditHelper == null) {
+            return ConfigurationUtil.getAuditHelper(servletContext);
+        }
+
+        return this.auditHelper;
     }
 }
