@@ -73,6 +73,13 @@
       </modules>
     </profile>
     <profile>
+      <id>eap7</id>
+      <modules>
+        <module>picketlink-wildfly-common</module>
+        <module>build-wildfly8</module>
+      </modules>
+    </profile>
+    <profile>
       <id>release</id>
       <activation>
         <property>

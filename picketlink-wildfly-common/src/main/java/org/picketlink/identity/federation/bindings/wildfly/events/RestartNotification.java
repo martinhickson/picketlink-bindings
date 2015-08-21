@@ -27,5 +27,5 @@ package org.picketlink.identity.federation.bindings.wildfly.events;
  * @author Anil Saldhana
  * @since November 04, 2013
  */
-public class RestartNotification implements PicketLinkEventNotification{
+public class RestartNotification implements PicketLinkEventNotification {
 }

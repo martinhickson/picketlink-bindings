@@ -17,7 +17,6 @@
  */
 package org.picketlink.identity.federation.bindings.wildfly.sp;
 
-import io.undertow.security.api.AuthenticationMechanism;
 import io.undertow.security.api.SecurityContext;
 import io.undertow.security.idm.Account;
 import io.undertow.security.idm.IdentityManager;
@@ -25,11 +24,13 @@ import io.undertow.server.HttpServerExchange;
 import io.undertow.server.handlers.form.FormParserFactory;
 import io.undertow.servlet.handlers.ServletRequestContext;
 import io.undertow.servlet.handlers.security.ServletFormAuthenticationMechanism;
+import java.util.ArrayList;
 import org.jboss.security.audit.AuditLevel;
 import org.picketlink.common.ErrorCodes;
 import org.picketlink.common.PicketLinkLogger;
 import org.picketlink.common.PicketLinkLoggerFactory;
 import org.picketlink.common.constants.GeneralConstants;
+import org.picketlink.common.constants.JBossSAMLConstants;
 import org.picketlink.common.exceptions.ConfigurationException;
 import org.picketlink.common.exceptions.ParsingException;
 import org.picketlink.common.exceptions.ProcessingException;
@@ -44,6 +45,7 @@ import org.picketlink.config.federation.SPType;
 import org.picketlink.config.federation.handler.Handlers;
 import org.picketlink.identity.federation.api.saml.v2.metadata.MetaDataExtractor;
 import org.picketlink.identity.federation.bindings.wildfly.ServiceProviderSAMLContext;
+import org.picketlink.identity.federation.core.SerializablePrincipal;
 import org.picketlink.identity.federation.core.audit.PicketLinkAuditEvent;
 import org.picketlink.identity.federation.core.audit.PicketLinkAuditEventType;
 import org.picketlink.identity.federation.core.audit.PicketLinkAuditHelper;
@@ -55,23 +57,31 @@ import org.picketlink.identity.federation.core.saml.v2.interfaces.SAML2Handler;
 import org.picketlink.identity.federation.core.saml.v2.interfaces.SAML2HandlerChain;
 import org.picketlink.identity.federation.core.saml.v2.interfaces.SAML2HandlerChainConfig;
 import org.picketlink.identity.federation.core.saml.v2.interfaces.SAML2HandlerResponse;
+import org.picketlink.identity.federation.core.saml.v2.util.AssertionUtil;
 import org.picketlink.identity.federation.core.saml.v2.util.HandlerUtil;
 import org.picketlink.identity.federation.core.saml.workflow.ServiceProviderSAMLWorkflow;
 import org.picketlink.identity.federation.core.util.CoreConfigUtil;
 import org.picketlink.identity.federation.core.util.XMLSignatureUtil;
+import org.picketlink.identity.federation.saml.v1.assertion.SAML11AssertionType;
+import org.picketlink.identity.federation.saml.v1.assertion.SAML11AuthenticationStatementType;
+import org.picketlink.identity.federation.saml.v1.assertion.SAML11StatementAbstractType;
+import org.picketlink.identity.federation.saml.v1.assertion.SAML11SubjectType;
+import org.picketlink.identity.federation.saml.v1.protocol.SAML11ResponseType;
 import org.picketlink.identity.federation.saml.v2.metadata.EndpointType;
 import org.picketlink.identity.federation.saml.v2.metadata.EntitiesDescriptorType;
 import org.picketlink.identity.federation.saml.v2.metadata.EntityDescriptorType;
 import org.picketlink.identity.federation.saml.v2.metadata.IDPSSODescriptorType;
 import org.picketlink.identity.federation.saml.v2.metadata.KeyDescriptorType;
-import org.picketlink.identity.federation.web.config.AbstractSAMLConfigurationProvider;
 import org.picketlink.identity.federation.web.core.HTTPContext;
 import org.picketlink.identity.federation.web.process.ServiceProviderBaseProcessor;
 import org.picketlink.identity.federation.web.process.ServiceProviderSAMLRequestProcessor;
 import org.picketlink.identity.federation.web.process.ServiceProviderSAMLResponseProcessor;
 import org.picketlink.identity.federation.web.util.ConfigurationUtil;
+import org.picketlink.identity.federation.web.util.PostBindingUtil;
+import org.picketlink.identity.federation.web.util.RedirectBindingUtil;
 import org.picketlink.identity.federation.web.util.SAMLConfigurationProvider;
 import org.w3c.dom.Document;
+import org.w3c.dom.Element;
 import org.wildfly.extension.undertow.security.AccountImpl;
 
 import javax.servlet.ServletContext;
@@ -99,9 +109,9 @@ import java.util.TimerTask;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
-import static org.picketlink.common.constants.GeneralConstants.CONFIG_FILE_LOCATION;
 import static org.picketlink.common.util.StringUtil.isNotNull;
 import static org.picketlink.common.util.StringUtil.isNullOrEmpty;
+import static org.picketlink.identity.federation.web.util.ConfigurationUtil.getAuditHelper;
 
 /**
  * PicketLink SP Authentication Mechanism that falls back to FORM
@@ -113,15 +123,17 @@ import static org.picketlink.common.util.StringUtil.isNullOrEmpty;
 public class SPFormAuthenticationMechanism extends ServletFormAuthenticationMechanism {
 
     private static final PicketLinkLogger logger = PicketLinkLoggerFactory.getLogger();
+    public static final String INITIAL_LOCATION_STORED = "org.picketlink.federation.saml.initial_location";
+
     protected transient String samlHandlerChainClass = null;
 
-    protected ServletContext servletContext = null;
+    protected final ServletContext servletContext;
 
     protected Map<String, Object> chainConfigOptions = new HashMap<String, Object>();
     /**
      * The user can inject a fully qualified name of a {@link org.picketlink.identity.federation.web.util.SAMLConfigurationProvider}
      */
-    protected SAMLConfigurationProvider configProvider = null;
+    protected SAMLConfigurationProvider configProvider;
     /**
      * If the service provider is configured with an IDP metadata file, then this certificate can be picked up from the metadata
      */
@@ -129,7 +141,6 @@ public class SPFormAuthenticationMechanism extends ServletFormAuthenticationMech
     protected int timerInterval = -1;
 
     protected Timer timer = null;
-
 
     public static final String EMPTY_PASSWORD = "EMPTY_STR";
 
@@ -142,7 +153,7 @@ public class SPFormAuthenticationMechanism extends ServletFormAuthenticationMech
 
     protected SPType spConfiguration = null;
 
-    protected PicketLinkType picketLinkConfiguration = null;
+    protected PicketLinkType configuration = null;
 
     protected String serviceURL = null;
 
@@ -162,33 +173,60 @@ public class SPFormAuthenticationMechanism extends ServletFormAuthenticationMech
 
     protected String canonicalizationMethod = CanonicalizationMethod.EXCLUSIVE_WITH_COMMENTS;
 
-    protected PicketLinkAuditHelper auditHelper = null;
+    protected PicketLinkAuditHelper auditHelper;
     protected TrustKeyManager keyManager;
+    private IDPSSODescriptorType idpMetadata;
 
-    public SPFormAuthenticationMechanism(FormParserFactory parserFactory, String name, String loginPage, String errorPage, ServletContext servletContext) {
+    public SPFormAuthenticationMechanism(FormParserFactory parserFactory, String name, String loginPage, String errorPage, ServletContext servletContext, PicketLinkType configuration, PicketLinkAuditHelper auditHelper) {
         super(parserFactory, name, loginPage, errorPage);
         this.servletContext = servletContext;
+        this.configuration = configuration;
+        this.spConfiguration = (SPType) configuration.getIdpOrSP();
+        this.auditHelper = auditHelper;
         startPicketLink();
     }
 
-    public void setAuditHelper(PicketLinkAuditHelper auditHelper) {
-        this.auditHelper = auditHelper;
+    public SPFormAuthenticationMechanism(FormParserFactory parserFactory, String name, String loginPage, String errorPage, ServletContext servletContext, SAMLConfigurationProvider configProvider, PicketLinkAuditHelper auditHelper) throws ProcessingException {
+        this(parserFactory, name, loginPage, errorPage, servletContext, configProvider.getPicketLinkConfiguration(), auditHelper);
     }
 
     @Override
     public ChallengeResult sendChallenge(HttpServerExchange exchange, SecurityContext securityContext) {
-        return new AuthenticationMechanism.ChallengeResult(true, 302);
+        ServletRequestContext servletRequestContext = exchange.getAttachment(ServletRequestContext.ATTACHMENT_KEY);
+        HttpServletRequest request = (HttpServletRequest) servletRequestContext.getServletRequest();
+        HttpServletResponse response = (HttpServletResponse) servletRequestContext.getServletResponse();
+        String samlRequest = request.getParameter(GeneralConstants.SAML_REQUEST_KEY);
+        HttpSession session = request.getSession(true);
+        Principal principal = request.getUserPrincipal();
+
+        try {
+            if (isAjaxRequest(request) && principal == null) {
+                return new ChallengeResult(false, HttpServletResponse.SC_FORBIDDEN);
+            }
+
+            // General User Request
+            if (!isNotNull(samlRequest) && !response.isCommitted()) {
+                session.setAttribute(INITIAL_LOCATION_STORED, true);
+                storeInitialLocation(exchange);
+                return generalUserRequest(exchange, securityContext);
+            }
+        } catch (Exception e) {
+            throw new RuntimeException("Could not send authn request to identity provider.", e);
+        }
+
+        if (response.isCommitted()) {
+            return new ChallengeResult(true);
+        }
+
+        return new ChallengeResult(false);
     }
 
     @Override
     public AuthenticationMechanismOutcome authenticate(HttpServerExchange exchange, SecurityContext securityContext) {
         // TODO: Deal with character encoding
         // request.setCharacterEncoding(xyz)
-
-        // Get the session
-
-        final ServletRequestContext servletRequestContext = exchange.getAttachment(ServletRequestContext.ATTACHMENT_KEY);
-        ServletContext servletContext = servletRequestContext.getCurrentServetContext();
+        ServletRequestContext servletRequestContext = exchange.getAttachment(ServletRequestContext.ATTACHMENT_KEY);
+        ServletContext servletContext = servletRequestContext.getCurrentServletContext();
         HttpServletRequest request = (HttpServletRequest) servletRequestContext.getServletRequest();
         HttpServletResponse response = (HttpServletResponse) servletRequestContext.getServletResponse();
 
@@ -227,16 +265,10 @@ public class SPFormAuthenticationMechanism extends ServletFormAuthenticationMech
         Principal principal = request.getUserPrincipal();
 
         try {
-        // If we have already authenticated the user and there is no request from IDP or logout from user
+            // If we have already authenticated the user and there is no request from IDP or logout from user
             if (principal != null
                     && !(serviceProviderSAMLWorkflow.isLocalLogoutRequest(request) || isGlobalLogout(request) || isNotNull(samlRequest) || isNotNull(samlResponse)))
                 return AuthenticationMechanismOutcome.AUTHENTICATED;
-
-        // General User Request
-        if (!isNotNull(samlRequest) && !isNotNull(samlResponse)) {
-            storeInitialLocation(exchange);
-            return generalUserRequest(exchange,securityContext);
-        }
 
             // Handle a SAML Response from IDP
             if (isNotNull(samlResponse)) {
@@ -267,6 +299,20 @@ public class SPFormAuthenticationMechanism extends ServletFormAuthenticationMech
 
     }
 
+    private AuthenticationMechanismOutcome handleSAMLResponse(HttpServerExchange exchange, SecurityContext securityContext) throws IOException {
+        ServletRequestContext request = exchange.getAttachment(ServletRequestContext.ATTACHMENT_KEY);
+        HttpServletRequest httpServletRequest = (HttpServletRequest) request.getServletRequest();
+        HttpServletResponse response = (HttpServletResponse) request.getServletResponse();
+
+        String samlVersion = getSAMLVersion(httpServletRequest);
+
+        if (!JBossSAMLConstants.VERSION_2_0.get().equals(samlVersion)) {
+            return handleSAML11UnsolicitedResponse(httpServletRequest, response, securityContext);
+        }
+
+        return handleSAML2Response(exchange, securityContext);
+    }
+
     /**
      * Handle the user invocation for the first time
      *
@@ -275,12 +321,12 @@ public class SPFormAuthenticationMechanism extends ServletFormAuthenticationMech
      * @return
      * @throws IOException
      */
-    private AuthenticationMechanismOutcome generalUserRequest(HttpServerExchange httpServerExchange, SecurityContext securityContext) throws IOException{
+    private ChallengeResult generalUserRequest(HttpServerExchange httpServerExchange, SecurityContext securityContext) throws IOException {
         ServiceProviderSAMLWorkflow serviceProviderSAMLWorkflow = new ServiceProviderSAMLWorkflow();
         serviceProviderSAMLWorkflow.setRedirectionHandler(new UndertowRedirectionHandler(httpServerExchange));
 
         final ServletRequestContext servletRequestContext = httpServerExchange.getAttachment(ServletRequestContext.ATTACHMENT_KEY);
-        ServletContext servletContext = servletRequestContext.getCurrentServetContext();
+        ServletContext servletContext = servletRequestContext.getCurrentServletContext();
         HttpServletRequest request = (HttpServletRequest) servletRequestContext.getServletRequest();
         HttpServletResponse response = (HttpServletResponse) servletRequestContext.getServletResponse();
 
@@ -296,12 +342,17 @@ public class SPFormAuthenticationMechanism extends ServletFormAuthenticationMech
         // So this is a user request
         SAML2HandlerResponse saml2HandlerResponse = null;
         try {
-            ServiceProviderBaseProcessor baseProcessor = new ServiceProviderBaseProcessor(postBinding, serviceURL,
-                    this.picketLinkConfiguration);
+            ServiceProviderBaseProcessor baseProcessor = new ServiceProviderBaseProcessor(postBinding, serviceURL, this.configuration, this.idpMetadata);
             if (issuerID != null)
                 baseProcessor.setIssuer(issuerID);
 
-            baseProcessor.setIdentityURL(identityURL);
+            // If the user has a different desired idp
+            String idp = (String) request.getAttribute(org.picketlink.identity.federation.web.constants.GeneralConstants.DESIRED_IDP);
+            if (StringUtil.isNotNull(idp)) {
+                baseProcessor.setIdentityURL(idp);
+            } else {
+                baseProcessor.setIdentityURL(getIdentityURL());
+            }
             baseProcessor.setAuditHelper(auditHelper);
 
             saml2HandlerResponse = baseProcessor.process(httpContext, handlers, chainLock);
@@ -329,22 +380,24 @@ public class SPFormAuthenticationMechanism extends ServletFormAuthenticationMech
                 if (saveRestoreRequest) {
                     storeInitialLocation(httpServerExchange);
                 }
-                if (enableAudit) {
-                    PicketLinkAuditEvent auditEvent = new PicketLinkAuditEvent(AuditLevel.INFO);
-                    auditEvent.setType(PicketLinkAuditEventType.REQUEST_TO_IDP);
-                    auditEvent.setWhoIsAuditing(servletContext.getContextPath());
-                    auditHelper.audit(auditEvent);
-                }
+
+                PicketLinkAuditEvent auditEvent = new PicketLinkAuditEvent(AuditLevel.INFO);
+
+                auditEvent.setType(PicketLinkAuditEventType.REQUEST_TO_IDP);
+                auditEvent.setWhoIsAuditing(servletContext.getContextPath());
+
+                audit(auditEvent);
+
                 serviceProviderSAMLWorkflow.sendRequestToIDP(destination, samlResponseDocument, relayState, response, willSendRequest,
                         destinationQueryStringWithSignature, isHttpPostBinding());
-                return AuthenticationMechanismOutcome.NOT_AUTHENTICATED;
+                return new ChallengeResult(false);
             } catch (Exception e) {
                 logger.samlSPHandleRequestError(e);
                 throw logger.samlSPProcessingExceptionError(e);
             }
         }
 
-        return localAuthentication(httpServerExchange, securityContext);
+        return super.sendChallenge(httpServerExchange, securityContext);
     }
 
     protected boolean matchRequest(HttpServletRequest request) {
@@ -366,7 +419,7 @@ public class SPFormAuthenticationMechanism extends ServletFormAuthenticationMech
     protected AuthenticationMechanismOutcome localAuthentication(HttpServerExchange httpServerExchange, SecurityContext securityContext) throws IOException {
 
         final ServletRequestContext servletRequestContext = httpServerExchange.getAttachment(ServletRequestContext.ATTACHMENT_KEY);
-        ServletContext servletContext = servletRequestContext.getCurrentServetContext();
+        ServletContext servletContext = servletRequestContext.getCurrentServletContext();
         HttpServletRequest request = (HttpServletRequest) servletRequestContext.getServletRequest();
         HttpServletResponse response = (HttpServletResponse) servletRequestContext.getServletResponse();
 
@@ -401,7 +454,7 @@ public class SPFormAuthenticationMechanism extends ServletFormAuthenticationMech
      */
     private AuthenticationMechanismOutcome handleSAMLRequest(HttpServerExchange httpServerExchange, SecurityContext securityContext) throws IOException {
         final ServletRequestContext servletRequestContext = httpServerExchange.getAttachment(ServletRequestContext.ATTACHMENT_KEY);
-        ServletContext servletContext = servletRequestContext.getCurrentServetContext();
+        ServletContext servletContext = servletRequestContext.getCurrentServletContext();
         HttpServletRequest request = (HttpServletRequest) servletRequestContext.getServletRequest();
         HttpServletResponse response = (HttpServletResponse) servletRequestContext.getServletResponse();
 
@@ -411,16 +464,16 @@ public class SPFormAuthenticationMechanism extends ServletFormAuthenticationMech
 
         try {
             ServiceProviderSAMLRequestProcessor requestProcessor = new ServiceProviderSAMLRequestProcessor(
-                    request.getMethod().equals("POST"), this.serviceURL, this.picketLinkConfiguration);
+                    request.getMethod().equals("POST"), this.serviceURL, this.configuration, this.idpMetadata);
             requestProcessor.setTrustKeyManager(keyManager);
             boolean result = requestProcessor.process(samlRequest, httpContext, handlers, chainLock);
 
-            if (enableAudit) {
-                PicketLinkAuditEvent auditEvent = new PicketLinkAuditEvent(AuditLevel.INFO);
-                auditEvent.setType(PicketLinkAuditEventType.REQUEST_FROM_IDP);
-                auditEvent.setWhoIsAuditing(servletContext.getContextPath());
-                auditHelper.audit(auditEvent);
-            }
+            PicketLinkAuditEvent auditEvent = new PicketLinkAuditEvent(AuditLevel.INFO);
+
+            auditEvent.setType(PicketLinkAuditEventType.REQUEST_FROM_IDP);
+            auditEvent.setWhoIsAuditing(servletContext.getContextPath());
+
+            audit(auditEvent);
 
             // If response is already commited, we need to stop with processing of HTTP request
             if (response.isCommitted())
@@ -444,11 +497,11 @@ public class SPFormAuthenticationMechanism extends ServletFormAuthenticationMech
      * @return
      * @throws IOException
      */
-    private AuthenticationMechanismOutcome handleSAMLResponse(HttpServerExchange httpServerExchange, SecurityContext securityContext) throws IOException {
+    private AuthenticationMechanismOutcome handleSAML2Response(HttpServerExchange httpServerExchange, SecurityContext securityContext) throws IOException {
         ServiceProviderSAMLWorkflow serviceProviderSAMLWorkflow = new ServiceProviderSAMLWorkflow();
 
         final ServletRequestContext servletRequestContext = httpServerExchange.getAttachment(ServletRequestContext.ATTACHMENT_KEY);
-        ServletContext servletContext = servletRequestContext.getCurrentServetContext();
+        ServletContext servletContext = servletRequestContext.getCurrentServletContext();
         HttpServletRequest request = (HttpServletRequest) servletRequestContext.getServletRequest();
         HttpServletResponse response = (HttpServletResponse) servletRequestContext.getServletResponse();
 
@@ -467,7 +520,7 @@ public class SPFormAuthenticationMechanism extends ServletFormAuthenticationMech
 
         // deal with SAML response from IDP
         try {
-            ServiceProviderSAMLResponseProcessor responseProcessor = new ServiceProviderSAMLResponseProcessor(request.getMethod().equals("POST"), serviceURL, this.picketLinkConfiguration);
+            ServiceProviderSAMLResponseProcessor responseProcessor = new ServiceProviderSAMLResponseProcessor(request.getMethod().equals("POST"), serviceURL, this.configuration, this.idpMetadata);
             if(auditHelper !=  null){
                 responseProcessor.setAuditHelper(auditHelper);
             }
@@ -526,25 +579,27 @@ public class SPFormAuthenticationMechanism extends ServletFormAuthenticationMech
                 //Register the principal with the request
                 register(securityContext, account);
 
-                if (enableAudit) {
-                    PicketLinkAuditEvent auditEvent = new PicketLinkAuditEvent(AuditLevel.INFO);
-                    auditEvent.setType(PicketLinkAuditEventType.RESPONSE_FROM_IDP);
-                    auditEvent.setSubjectName(username);
-                    auditEvent.setWhoIsAuditing(servletContext.getContextPath());
-                    auditHelper.audit(auditEvent);
-                }
+                PicketLinkAuditEvent auditEvent = new PicketLinkAuditEvent(AuditLevel.INFO);
+
+                auditEvent.setType(PicketLinkAuditEventType.RESPONSE_FROM_IDP);
+                auditEvent.setSubjectName(username);
+                auditEvent.setWhoIsAuditing(servletContext.getContextPath());
+
+                audit(auditEvent);
 
                 // Redirect the user to the originally requested URL
                 if (saveRestoreRequest) {
                     // Store the authenticated principal in the session.
                     session.setAttribute(FORM_ACCOUNT_NOTE, account);
 
-                    // Redirect to the original URL.  Note that this will trigger the
-                    // authenticator again, but on resubmission we will look in the
-                    // session notes to retrieve the authenticated principal and
-                    // prevent reauthentication
-                    handleRedirectBack(httpServerExchange);
-                    httpServerExchange.endExchange();
+                    if (session.getAttribute(INITIAL_LOCATION_STORED) != null) {
+                        // Redirect to the original URL.  Note that this will trigger the
+                        // authenticator again, but on resubmission we will look in the
+                        // session notes to retrieve the authenticated principal and
+                        // prevent reauthentication
+                        handleRedirectBack(httpServerExchange);
+                        httpServerExchange.endExchange();
+                    }
                 }
                 return AuthenticationMechanismOutcome.AUTHENTICATED;
             }
@@ -552,14 +607,17 @@ public class SPFormAuthenticationMechanism extends ServletFormAuthenticationMech
             Throwable t = pe.getCause();
             if (t != null && t instanceof AssertionExpiredException) {
                 logger.error("Assertion has expired. Asking IDP for reissue");
-                if (enableAudit) {
-                    PicketLinkAuditEvent auditEvent = new PicketLinkAuditEvent(AuditLevel.INFO);
-                    auditEvent.setType(PicketLinkAuditEventType.EXPIRED_ASSERTION);
-                    auditEvent.setAssertionID(((AssertionExpiredException) t).getId());
-                    auditHelper.audit(auditEvent);
-                }
+
+                PicketLinkAuditEvent auditEvent = new PicketLinkAuditEvent(AuditLevel.INFO);
+
+                auditEvent.setType(PicketLinkAuditEventType.EXPIRED_ASSERTION);
+                auditEvent.setAssertionID(((AssertionExpiredException) t).getId());
+
+                audit(auditEvent);
+
                 // Just issue a fresh request back to IDP
-                return generalUserRequest(httpServerExchange,securityContext);
+                generalUserRequest(httpServerExchange,securityContext);
+                return AuthenticationMechanismOutcome.NOT_AUTHENTICATED;
             }
             logger.samlSPHandleRequestError(pe);
             throw logger.samlSPProcessingExceptionError(pe);
@@ -616,6 +674,7 @@ public class SPFormAuthenticationMechanism extends ServletFormAuthenticationMech
             timer.scheduleAtFixedRate(new TimerTask() {
                 @Override
                 public void run() {
+                    reloadConfiguration();
                     processConfiguration();
                     initKeyProvider(servletContext);
                 }
@@ -636,8 +695,8 @@ public class SPFormAuthenticationMechanism extends ServletFormAuthenticationMech
         this.processConfiguration();
 
         try {
-            if (picketLinkConfiguration != null) {
-                handlers = picketLinkConfiguration.getHandlers();
+            if (configuration != null) {
+                handlers = configuration.getHandlers();
             } else {
                 // Get the handlers
                 String handlerConfigFileName = GeneralConstants.HANDLER_CONFIG_FILE_LOCATION;
@@ -653,11 +712,11 @@ public class SPFormAuthenticationMechanism extends ServletFormAuthenticationMech
             throw new RuntimeException(e);
         }
 
-        if (this.picketLinkConfiguration == null) {
-            this.picketLinkConfiguration = new PicketLinkType();
+        if (this.configuration == null) {
+            this.configuration = new PicketLinkType();
 
-            this.picketLinkConfiguration.setIdpOrSP(spConfiguration);
-            this.picketLinkConfiguration.setHandlers(handlers);
+            this.configuration.setIdpOrSP(spConfiguration);
+            this.configuration.setHandlers(handlers);
         }
     }
 
@@ -730,106 +789,107 @@ public class SPFormAuthenticationMechanism extends ServletFormAuthenticationMech
         }
         return false;
     }
-    protected void processConfiguration() {
-        InputStream is = null;
 
-        if (isNullOrEmpty(this.configFile)) {
-            this.configFile = CONFIG_FILE_LOCATION;
-            is = servletContext.getResourceAsStream(this.configFile);
-        } else {
-            try {
-                is = new FileInputStream(this.configFile);
-            } catch (FileNotFoundException e) {
-                throw logger.samlIDPConfigurationError(e);
+    protected void processConfiguration() {
+        enableAudit = configuration.isEnableAudit();
+
+        //See if we have the system property enabled
+        if(!enableAudit){
+            String sysProp = SecurityActions.getSystemProperty(GeneralConstants.AUDIT_ENABLE, "NULL");
+            if(!"NULL".equals(sysProp)){
+                enableAudit = Boolean.parseBoolean(sysProp);
             }
         }
 
+        if (enableAudit && auditHelper == null) {
+            try {
+                auditHelper = getAuditHelper(servletContext);
+            } catch (Exception e) {
+                throw new RuntimeException("Could not create audit helper.", e);
+            }
+        }
+
+        processIdPMetadata(spConfiguration);
+
+        this.identityURL = spConfiguration.getIdentityURL();
+        this.serviceURL = spConfiguration.getServiceURL();
+        this.canonicalizationMethod = spConfiguration.getCanonicalizationMethod();
+
+        logger.samlSPSettingCanonicalizationMethod(canonicalizationMethod);
+        XMLSignatureUtil.setCanonicalizationMethodType(canonicalizationMethod);
+
+        logger.trace("Identity Provider URL=" + this.identityURL);
+    }
+
+    private void reloadConfiguration() {
         try {
-            // Work on the IDP Configuration
-            if (configProvider != null) {
-                try {
-                    if (is == null) {
-                        // Try the older version
-                        is = servletContext.getResourceAsStream(GeneralConstants.DEPRECATED_CONFIG_FILE_LOCATION);
-
-                        // Additionally parse the deprecated config file
-                        if (is != null && configProvider instanceof AbstractSAMLConfigurationProvider) {
-                            ((AbstractSAMLConfigurationProvider) configProvider).setConfigFile(is);
-                        }
-                    } else {
-                        // Additionally parse the consolidated config file
-                        if (is != null && configProvider instanceof AbstractSAMLConfigurationProvider) {
-                            ((AbstractSAMLConfigurationProvider) configProvider).setConsolidatedConfigFile(is);
-                        }
-                    }
-
-                    picketLinkConfiguration = configProvider.getPicketLinkConfiguration();
-                    spConfiguration = configProvider.getSPConfiguration();
-                } catch (ProcessingException e) {
-                    throw logger.samlSPConfigurationError(e);
-                } catch (ParsingException e) {
-                    throw logger.samlSPConfigurationError(e);
-                }
+            if (this.configProvider != null) {
+                this.configuration = this.configProvider.getPicketLinkConfiguration();
             } else {
-                if (is != null) {
-                    try {
-                        picketLinkConfiguration = ConfigurationUtil.getConfiguration(is);
-                        spConfiguration = (SPType) picketLinkConfiguration.getIdpOrSP();
-                    } catch (ParsingException e) {
-                        logger.trace(e);
-                        throw logger.samlSPConfigurationError(e);
-                    }
-                } else {
-                    is = servletContext.getResourceAsStream(GeneralConstants.DEPRECATED_CONFIG_FILE_LOCATION);
-                    if (is == null)
-                        throw logger.configurationFileMissing(configFile);
-                    spConfiguration = ConfigurationUtil.getSPConfiguration(is);
-                }
+                this.configuration = ConfigurationUtil.getConfiguration(this.servletContext);
             }
 
-            if (this.picketLinkConfiguration != null) {
-                enableAudit = picketLinkConfiguration.isEnableAudit();
-
-                //See if we have the system property enabled
-                if(!enableAudit){
-                    String sysProp = SecurityActions.getSystemProperty(GeneralConstants.AUDIT_ENABLE, "NULL");
-                    if(!"NULL".equals(sysProp)){
-                        enableAudit = Boolean.parseBoolean(sysProp);
-                    }
-                }
-
-                if (enableAudit) {
-                    if (auditHelper == null) {
-                        String securityDomainName = PicketLinkAuditHelper.getSecurityDomainName(servletContext);
-
-                        auditHelper = new PicketLinkAuditHelper(securityDomainName);
-                    }
-                }
-            }
-
-            if (StringUtil.isNotNull(spConfiguration.getIdpMetadataFile())) {
-                processIDPMetadataFile(spConfiguration.getIdpMetadataFile());
-            } else {
-                this.identityURL = spConfiguration.getIdentityURL();
-            }
-            this.serviceURL = spConfiguration.getServiceURL();
-            this.canonicalizationMethod = spConfiguration.getCanonicalizationMethod();
-
-            logger.samlSPSettingCanonicalizationMethod(canonicalizationMethod);
-            XMLSignatureUtil.setCanonicalizationMethodType(canonicalizationMethod);
-
-            logger.trace("Identity Provider URL=" + this.identityURL);
+            this.spConfiguration = (SPType) this.configuration.getIdpOrSP();
         } catch (Exception e) {
-            throw new RuntimeException(e);
+            throw new RuntimeException("Error while reloading configuration.", e);
         }
     }
-    /**
-     * Attempt to process a metadata file available locally
-     */
-    protected void processIDPMetadataFile(String idpMetadataFile) {
-        InputStream is = servletContext.getResourceAsStream(idpMetadataFile);
-        if (is == null)
-            return;
+
+    private void processIdPMetadata(SPType spConfiguration) {
+        IDPSSODescriptorType idpssoDescriptorType = null;
+
+        if (isNotNull(spConfiguration.getIdpMetadataFile())) {
+            idpssoDescriptorType = getIdpMetadataFromFile(spConfiguration);
+        } else {
+            idpssoDescriptorType = getIdpMetadataFromProvider(spConfiguration);
+        }
+
+        if (idpssoDescriptorType != null) {
+            List<EndpointType> endpoints = idpssoDescriptorType.getSingleSignOnService();
+            for (EndpointType endpoint : endpoints) {
+                String endpointBinding = endpoint.getBinding().toString();
+                if (endpointBinding.contains("HTTP-POST")) {
+                    endpointBinding = "POST";
+                } else if (endpointBinding.contains("HTTP-Redirect")) {
+                    endpointBinding = "REDIRECT";
+                }
+                if (spConfiguration.getBindingType().equals(endpointBinding)) {
+                    spConfiguration.setIdentityURL(endpoint.getLocation().toString());
+                    break;
+                }
+            }
+            List<KeyDescriptorType> keyDescriptors = idpssoDescriptorType.getKeyDescriptor();
+            if (keyDescriptors.size() > 0) {
+                this.idpCertificate = MetaDataExtractor.getCertificate(keyDescriptors.get(0));
+            }
+
+            this.idpMetadata = idpssoDescriptorType;
+        }
+    }
+
+    private IDPSSODescriptorType getIdpMetadataFromProvider(SPType spConfiguration) {
+        List<EntityDescriptorType> entityDescriptors = CoreConfigUtil.getMetadataConfiguration(spConfiguration,
+                this.servletContext);
+
+        if (entityDescriptors != null) {
+            for (EntityDescriptorType entityDescriptorType : entityDescriptors) {
+                IDPSSODescriptorType idpssoDescriptorType = handleMetadata(entityDescriptorType);
+
+                if (idpssoDescriptorType != null) {
+                    return idpssoDescriptorType;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    protected IDPSSODescriptorType getIdpMetadataFromFile(SPType configuration) {
+        ServletContext servletContext = this.servletContext;
+        InputStream is = servletContext.getResourceAsStream(configuration.getIdpMetadataFile());
+        if (is == null) {
+            return null;
+        }
 
         Object metadata = null;
         try {
@@ -848,25 +908,12 @@ public class SPFormAuthenticationMechanism extends ServletFormAuthenticationMech
         }
         if (idpSSO == null) {
             logger.samlSPUnableToGetIDPDescriptorFromMetadata();
-            return;
+            return idpSSO;
         }
-        List<EndpointType> endpoints = idpSSO.getSingleSignOnService();
-        for (EndpointType endpoint : endpoints) {
-            String endpointBinding = endpoint.getBinding().toString();
-            if (endpointBinding.contains("HTTP-POST"))
-                endpointBinding = "POST";
-            else if (endpointBinding.contains("HTTP-Redirect"))
-                endpointBinding = "REDIRECT";
-            if (spConfiguration.getBindingType().equals(endpointBinding)) {
-                identityURL = endpoint.getLocation().toString();
-                break;
-            }
-        }
-        List<KeyDescriptorType> keyDescriptors = idpSSO.getKeyDescriptor();
-        if (keyDescriptors.size() > 0) {
-            this.idpCertificate = MetaDataExtractor.getCertificate(keyDescriptors.get(0));
-        }
+
+        return idpSSO;
     }
+
     protected IDPSSODescriptorType handleMetadata(EntitiesDescriptorType entities) {
         IDPSSODescriptorType idpSSO = null;
 
@@ -874,16 +921,14 @@ public class SPFormAuthenticationMechanism extends ServletFormAuthenticationMech
         for (Object entityDescriptor : entityDescs) {
             if (entityDescriptor instanceof EntitiesDescriptorType) {
                 idpSSO = getIDPSSODescriptor(entities);
-            } else
+            } else {
                 idpSSO = handleMetadata((EntityDescriptorType) entityDescriptor);
-            if (idpSSO != null)
+            }
+            if (idpSSO != null) {
                 break;
+            }
         }
         return idpSSO;
-    }
-
-    protected IDPSSODescriptorType handleMetadata(EntityDescriptorType entityDescriptor) {
-        return CoreConfigUtil.getIDPDescriptor(entityDescriptor);
     }
 
     protected IDPSSODescriptorType getIDPSSODescriptor(EntitiesDescriptorType entities) {
@@ -896,6 +941,10 @@ public class SPFormAuthenticationMechanism extends ServletFormAuthenticationMech
             return CoreConfigUtil.getIDPDescriptor((EntityDescriptorType) entityDescriptor);
         }
         return null;
+    }
+
+    protected IDPSSODescriptorType handleMetadata(EntityDescriptorType entityDescriptor) {
+        return CoreConfigUtil.getIDPDescriptor(entityDescriptor);
     }
 
     protected void initializeHandlerChain() throws ConfigurationException, ProcessingException {
@@ -926,5 +975,148 @@ public class SPFormAuthenticationMechanism extends ServletFormAuthenticationMech
     private boolean isGlobalLogout(HttpServletRequest request) {
         String gloStr = request.getParameter(GeneralConstants.GLOBAL_LOGOUT);
         return isNotNull(gloStr) && "true".equalsIgnoreCase(gloStr);
+    }
+
+    private String getSAMLVersion(HttpServletRequest request) {
+        String samlResponse = request.getParameter(GeneralConstants.SAML_RESPONSE_KEY);
+        String version;
+
+        try {
+            Document samlDocument = toSAMLResponseDocument(samlResponse, "POST".equalsIgnoreCase(request.getMethod()));
+            Element element = samlDocument.getDocumentElement();
+
+            // let's try SAML 2.0 Version attribute first
+            version = element.getAttribute("Version");
+
+            if (isNullOrEmpty(version)) {
+                // fallback to SAML 1.1 Minor and Major attributes
+                String minorVersion = element.getAttribute("MinorVersion");
+                String majorVersion = element.getAttribute("MajorVersion");
+
+                version = minorVersion + "." + majorVersion;
+            }
+        } catch (Exception e) {
+            throw new RuntimeException("Could not extract version from SAML Response.", e);
+        }
+
+        return version;
+    }
+
+    private Document toSAMLResponseDocument(String samlResponse, boolean isPostBinding) throws ParsingException {
+        InputStream dataStream = null;
+
+        if (isPostBinding) {
+            // deal with SAML response from IDP
+            dataStream = PostBindingUtil.base64DecodeAsStream(samlResponse);
+        } else {
+            // deal with SAML response from IDP
+            dataStream = RedirectBindingUtil.base64DeflateDecode(samlResponse);
+        }
+
+        try {
+            return DocumentUtil.getDocument(dataStream);
+        } catch (Exception e) {
+            logger.samlResponseFromIDPParsingFailed();
+            throw new ParsingException("", e);
+        }
+    }
+
+    public AuthenticationMechanismOutcome handleSAML11UnsolicitedResponse(HttpServletRequest request, HttpServletResponse response, SecurityContext securityContext) {
+        String samlResponse = request.getParameter(GeneralConstants.SAML_RESPONSE_KEY);
+
+        Principal principal = request.getUserPrincipal();
+
+        // See if we got a response from IDP
+        if (isNotNull(samlResponse)) {
+            try {
+                InputStream base64DecodedResponse = null;
+
+                if ("GET".equalsIgnoreCase(request.getMethod())) {
+                    base64DecodedResponse = RedirectBindingUtil.base64DeflateDecode(samlResponse);
+                } else {
+                    base64DecodedResponse = PostBindingUtil.base64DecodeAsStream(samlResponse);
+                }
+
+                SAMLParser parser = new SAMLParser();
+                SAML11ResponseType saml11Response = (SAML11ResponseType) parser.parse(base64DecodedResponse);
+
+                List<SAML11AssertionType> assertions = saml11Response.get();
+
+                if (assertions.size() > 1) {
+                    logger.trace("More than one assertion from IDP. Considering the first one.");
+                }
+
+                List<String> roles = new ArrayList<String>();
+                SAML11AssertionType assertion = assertions.get(0);
+
+                if (assertion != null) {
+                    // Get the subject
+                    List<SAML11StatementAbstractType> statements = assertion.getStatements();
+                    for (SAML11StatementAbstractType statement : statements) {
+                        if (statement instanceof SAML11AuthenticationStatementType) {
+                            SAML11AuthenticationStatementType subStat = (SAML11AuthenticationStatementType) statement;
+                            SAML11SubjectType subject = subStat.getSubject();
+                            principal = new SerializablePrincipal(subject.getChoice().getNameID().getValue());
+                        }
+                    }
+                    roles = AssertionUtil.getRoles(assertion, null);
+                }
+
+                String username = principal.getName();
+                String password = EMPTY_PASSWORD;
+
+                if (logger.isTraceEnabled()) {
+                    logger.trace("Roles determined for username=" + username + "=" + Arrays.toString(roles.toArray()));
+                }
+
+                ServiceProviderSAMLContext.push(username, roles);
+
+                //TODO: figure out getting the principal via authentication
+                IdentityManager identityManager = securityContext.getIdentityManager();
+
+                final Principal userPrincipal = principal;
+
+                Account account = new AccountImpl(userPrincipal, new HashSet<String>(roles), password);
+
+                account = identityManager.verify(account);
+
+                //Register the principal with the request
+                register(securityContext, account);
+
+                PicketLinkAuditEvent auditEvent = new PicketLinkAuditEvent(AuditLevel.INFO);
+
+                auditEvent.setType(PicketLinkAuditEventType.RESPONSE_FROM_IDP);
+                auditEvent.setSubjectName(username);
+                auditEvent.setWhoIsAuditing(servletContext.getContextPath());
+
+                audit(auditEvent);
+
+                return AuthenticationMechanismOutcome.AUTHENTICATED;
+            } catch (Exception e) {
+                logger.samlSPHandleRequestError(e);
+            }
+        }
+
+        return AuthenticationMechanismOutcome.NOT_AUTHENTICATED;
+    }
+
+    public void audit(PicketLinkAuditEvent event) {
+        if (this.enableAudit) {
+            this.auditHelper.audit(event);
+        }
+    }
+
+    private boolean isAjaxRequest(HttpServletRequest request) {
+        String requestedWithHeader = request.getHeader(GeneralConstants.HTTP_HEADER_X_REQUESTED_WITH);
+        return requestedWithHeader != null && "XMLHttpRequest".equalsIgnoreCase(requestedWithHeader);
+    }
+
+    /**
+     * Get the Identity URL
+     *
+     * @return
+     */
+    public String getIdentityURL() {
+        return this.spConfiguration.getIdentityURL();
     }
 }
