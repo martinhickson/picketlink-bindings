@@ -77,6 +77,8 @@
     <profile>
       <id>eap7</id>
       <modules>
+        <module>picketlink-tomcat-common</module>
+        <module>picketlink-jbas-common</module>
         <module>picketlink-wildfly-common</module>
         <module>build-wildfly8</module>
       </modules>

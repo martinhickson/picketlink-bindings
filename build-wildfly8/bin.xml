@@ -11,6 +11,14 @@
       <outputDirectory>/</outputDirectory>
     </fileSet>
     <fileSet>
+      <directory>${basedir}/../picketlink-jbas-common/target/classes/</directory>
+      <outputDirectory>/</outputDirectory>
+    </fileSet>
+    <fileSet>
+      <directory>${basedir}/../picketlink-tomcat-common/target/classes/</directory>
+      <outputDirectory>/</outputDirectory>
+    </fileSet>
+    <fileSet>
       <directory>${basedir}/../picketlink-core/target/classes/</directory>
       <outputDirectory>/</outputDirectory>
     </fileSet>

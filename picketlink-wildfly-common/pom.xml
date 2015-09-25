@@ -7,7 +7,7 @@
     <relativePath>../pom.xml</relativePath>
   </parent>
   <modelVersion>4.0.0</modelVersion>
-  <artifactId>picketlink-wildlfy-common</artifactId>
+  <artifactId>picketlink-wildfly-common</artifactId>
   <packaging>jar</packaging>
   <name>PicketLink Common Server Bindings for WildFly</name>
 
@@ -19,9 +19,23 @@
     <undertow.io.version>1.3.0.Beta9</undertow.io.version>
     <httpcomponents.version>4.2.5</httpcomponents.version>
     <httpunit.version>1.7</httpunit.version>
+    <cxf-api.version>2.4.6</cxf-api.version>
   </properties>
 
   <dependencies>
+    <dependency>
+      <groupId>org.picketlink</groupId>
+      <artifactId>picketlink-jbas-common</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+
+    <dependency>
+      <groupId>org.apache.cxf</groupId>
+      <artifactId>cxf-api</artifactId>
+      <version>${cxf-api.version}</version>
+      <scope>provided</scope>
+    </dependency>
+
     <dependency>
       <groupId>org.picketlink</groupId>
       <artifactId>picketlink-federation</artifactId>
