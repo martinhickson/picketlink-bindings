@@ -21,15 +21,14 @@
  */
 package org.picketlink.identity.federation.bindings.wildfly;
 
-import org.jboss.security.SimpleGroup;
-import org.jboss.security.SimplePrincipal;
+import org.apache.cxf.common.security.GroupPrincipal;
+import org.apache.cxf.common.security.SimpleGroup;
+import org.apache.cxf.common.security.SimplePrincipal;
 import org.jboss.security.auth.spi.UsernamePasswordLoginModule;
-import org.picketlink.common.util.StringUtil;
 
 import javax.security.auth.Subject;
 import javax.security.auth.callback.CallbackHandler;
 import javax.security.auth.login.LoginException;
-import java.security.acl.Group;
 import java.util.List;
 import java.util.Map;
 
@@ -61,14 +60,14 @@ public class SAML2LoginModule extends UsernamePasswordLoginModule {
     public void initialize(Subject subject, CallbackHandler callbackHandler, Map<String, ?> sharedState, Map<String, ?> options) {
         super.initialize(subject, callbackHandler, sharedState, options);
         String groupNameStr = (String) options.get("groupPrincipalName");
-        if (StringUtil.isNotNull(groupNameStr)) {
+        if (groupNameStr != null && !"".equals(groupNameStr.trim())) {
             groupName = groupNameStr.trim();
         }
     }
 
     @Override
-    protected Group[] getRoleSets() throws LoginException {
-        Group group = new SimpleGroup(groupName);
+    protected GroupPrincipal[] getRoleSets() throws LoginException {
+        GroupPrincipal group = new SimpleGroup(groupName);
         List<String> roles = ServiceProviderSAMLContext.getRoles();
 
         if (roles != null) {
@@ -76,7 +75,7 @@ public class SAML2LoginModule extends UsernamePasswordLoginModule {
                 group.addMember(new SimplePrincipal(role));
             }
         }
-        return new Group[] { group };
+        return new GroupPrincipal[] { group };
     }
 
     @Override

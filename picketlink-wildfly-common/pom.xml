@@ -3,7 +3,7 @@
   <parent>
     <groupId>org.picketlink</groupId>
     <artifactId>picketlink-bindings-parent</artifactId>
-    <version>2.5.5.CR1</version>
+    <version>2.5.5.jdk17.1</version>
     <relativePath>../pom.xml</relativePath>
   </parent>
   <modelVersion>4.0.0</modelVersion>
@@ -20,12 +20,27 @@
     <httpcomponents.version>4.2.5</httpcomponents.version>
     <httpunit.version>1.7</httpunit.version>
   </properties>
+  
+    <distributionManagement>
+    <repository>
+        <id>central</id>
+        <name>Artifactory Releases</name>
+        <url>https://repo.bravurasolutions.net:443/artifactory/ext-release-local</url>
+    </repository>
+    <snapshotRepository>
+        <id>snapshots</id>
+        <name>Artifactory Snapshots</name>
+        <url>https://repo.bravurasolutions.net:443/artifactory/ext-snapshot-local</url>
+    </snapshotRepository>
+
+  </distributionManagement>
+
 
   <dependencies>
     <dependency>
       <groupId>org.picketlink</groupId>
       <artifactId>picketlink-federation</artifactId>
-      <version>${project.version}</version>
+      <version>2.5.5.jdk17.1</version>
     </dependency>
 
     <dependency>
@@ -43,7 +58,7 @@
     <dependency>
       <groupId>org.wildfly</groupId>
       <artifactId>wildfly-undertow</artifactId>
-      <version>${wildfly.version}</version>
+      <version>10.1.0.Final</version>
       <scope>provided</scope>
     </dependency>
 
@@ -65,6 +80,13 @@
       <groupId>org.jboss.security</groupId>
       <artifactId>jbossxacml</artifactId>
       <version>${jbossxacml.version}</version>
+      <optional>true</optional>
+    </dependency>
+    
+    <dependency>
+      <groupId>org.apache.cxf</groupId>
+      <artifactId>cxf-core</artifactId>
+      <version>3.3.6</version>
       <optional>true</optional>
     </dependency>
 
@@ -98,4 +120,13 @@
       <scope>test</scope>
     </dependency>
   </dependencies>
+  <dependencyManagement>
+  	<dependencies>
+  		<dependency>
+  			<groupId>org.picketbox</groupId>
+  			<artifactId>picketbox</artifactId>
+  			<version>5.0.3.jdk17.1</version>
+  		</dependency>
+  	</dependencies>
+  </dependencyManagement>
 </project>

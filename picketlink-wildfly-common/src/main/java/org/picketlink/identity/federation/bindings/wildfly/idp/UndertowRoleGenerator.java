@@ -17,12 +17,12 @@
  */
 package org.picketlink.identity.federation.bindings.wildfly.idp;
 
+import org.apache.cxf.common.security.GroupPrincipal;
 import org.jboss.security.SecurityContextAssociation;
 import org.picketlink.identity.federation.core.interfaces.RoleGenerator;
 
 import javax.security.auth.Subject;
 import java.security.Principal;
-import java.security.acl.Group;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Enumeration;
@@ -59,14 +59,14 @@ public class UndertowRoleGenerator implements RoleGenerator {
      * @return
      */
     private List<String> fromSubject() {
-        List roles = new ArrayList();
+        List<String> roles = new ArrayList<String>();
         Subject subject = SecurityContextAssociation.getSubject();
 
         if (subject != null) {
-            Set<Group> groups = subject.getPrincipals(Group.class);
+            Set<GroupPrincipal> groups = subject.getPrincipals(GroupPrincipal.class);
 
             if (groups != null) {
-                for (Group group : groups) {
+                for (GroupPrincipal group : groups) {
                     if ("Roles".equals(group.getName())) {
                         Enumeration<? extends Principal> subjectRoles = group.members();
                         while (subjectRoles.hasMoreElements()) {
