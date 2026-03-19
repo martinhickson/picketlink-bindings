@@ -37,9 +37,9 @@ import org.picketlink.identity.federation.web.filters.IDPFilter;
 import org.picketlink.identity.federation.web.util.ConfigurationUtil;
 import org.picketlink.identity.federation.web.util.SAMLConfigurationProvider;
 
-import javax.servlet.DispatcherType;
-import javax.servlet.ServletContext;
-import javax.servlet.http.HttpServletRequest;
+import jakarta.servlet.DispatcherType;
+import jakarta.servlet.ServletContext;
+import jakarta.servlet.http.HttpServletRequest;
 
 import static org.picketlink.common.constants.GeneralConstants.AUDIT_HELPER;
 import static org.picketlink.common.constants.GeneralConstants.CONFIGURATION;

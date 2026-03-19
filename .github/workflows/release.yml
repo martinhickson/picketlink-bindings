@@ -1,0 +1,154 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version"
+        required: true
+        default: "2.5.5.jakarta.bravura.8"
+      dependency_repository_name:
+        description: "Repository name under same owner that hosts Maven packages"
+        required: true
+        default: "picketlink"
+
+permissions:
+  contents: write
+  packages: write
+
+concurrency:
+  group: release-${{ github.event.inputs.version }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    env:
+      RELEASE_VERSION: ${{ github.event.inputs.version }}
+      RELEASE_BRANCH: release/${{ github.event.inputs.version }}
+      RELEASE_TAG: v${{ github.event.inputs.version }}
+      DEPENDENCY_REPOSITORY: https://maven.pkg.github.com/${{ github.repository_owner }}/${{ github.event.inputs.dependency_repository_name }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Java 17 and Maven auth
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: maven
+          server-id: github
+          server-username: GITHUB_ACTOR
+          server-password: GITHUB_TOKEN
+
+      - name: Configure Maven repositories
+        run: |
+          mkdir -p "${HOME}/.m2"
+          cat > "${HOME}/.m2/settings.xml" <<'EOF'
+          <settings xmlns="http://maven.apache.org/SETTINGS/1.0.0"
+                    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                    xsi:schemaLocation="http://maven.apache.org/SETTINGS/1.0.0 https://maven.apache.org/xsd/settings-1.0.0.xsd">
+            <servers>
+              <server>
+                <id>github</id>
+                <username>${env.GITHUB_ACTOR}</username>
+                <password>${env.GITHUB_TOKEN}</password>
+              </server>
+            </servers>
+            <profiles>
+              <profile>
+                <id>release-repos</id>
+                <repositories>
+                  <repository>
+                    <id>central</id>
+                    <url>https://repo.maven.apache.org/maven2</url>
+                  </repository>
+                  <repository>
+                    <id>github</id>
+                    <url>${env.DEPENDENCY_REPOSITORY}</url>
+                    <releases>
+                      <enabled>true</enabled>
+                    </releases>
+                    <snapshots>
+                      <enabled>true</enabled>
+                    </snapshots>
+                  </repository>
+                </repositories>
+                <pluginRepositories>
+                  <pluginRepository>
+                    <id>central</id>
+                    <url>https://repo.maven.apache.org/maven2</url>
+                  </pluginRepository>
+                </pluginRepositories>
+              </profile>
+            </profiles>
+            <activeProfiles>
+              <activeProfile>release-repos</activeProfile>
+            </activeProfiles>
+          </settings>
+          EOF
+
+      - name: Configure git identity
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Ensure release branch/tag do not already exist
+        run: |
+          if git ls-remote --heads origin "${RELEASE_BRANCH}" | grep -q "${RELEASE_BRANCH}"; then
+            echo "Release branch already exists: ${RELEASE_BRANCH}"
+            exit 1
+          fi
+          if git ls-remote --tags origin "${RELEASE_TAG}" | grep -q "${RELEASE_TAG}"; then
+            echo "Release tag already exists: ${RELEASE_TAG}"
+            exit 1
+          fi
+
+      - name: Create release branch
+        run: |
+          git switch -c "${RELEASE_BRANCH}"
+
+      - name: Set Maven version across all modules
+        run: |
+          mvn -B -ntp versions:set \
+            -DnewVersion="${RELEASE_VERSION}" \
+            -DprocessAllModules=true \
+            -DgenerateBackupPoms=false
+          mvn -B -ntp versions:update-child-modules -DgenerateBackupPoms=false
+
+      - name: Commit release version updates
+        run: |
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No pom version changes to commit."
+          else
+            git commit -m "Release ${RELEASE_VERSION}: set Maven project versions"
+          fi
+
+      - name: Create release tag
+        run: |
+          git tag "${RELEASE_TAG}"
+
+      - name: Build and deploy to GitHub Packages (skip tests)
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_ACTOR: ${{ github.actor }}
+        run: |
+          mvn -B -ntp -DskipTests -Dgpg.skip=true deploy \
+            -DaltDeploymentRepository=github::default::https://maven.pkg.github.com/${{ github.repository }}
+
+      - name: Push release branch and tag
+        run: |
+          git push origin "${RELEASE_BRANCH}"
+          git push origin "${RELEASE_TAG}"
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.RELEASE_TAG }}
+          target_commitish: ${{ env.RELEASE_BRANCH }}
+          name: ${{ env.RELEASE_TAG }}
+          generate_release_notes: true

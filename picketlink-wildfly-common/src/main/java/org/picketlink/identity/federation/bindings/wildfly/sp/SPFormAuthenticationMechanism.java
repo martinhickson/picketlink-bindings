@@ -82,14 +82,13 @@ import org.picketlink.identity.federation.web.util.RedirectBindingUtil;
 import org.picketlink.identity.federation.web.util.SAMLConfigurationProvider;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
-import org.wildfly.extension.undertow.security.AccountImpl;
 
-import javax.servlet.ServletContext;
-import javax.servlet.ServletException;
-import javax.servlet.annotation.WebListener;
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
-import javax.servlet.http.HttpSession;
+import jakarta.servlet.ServletContext;
+import jakarta.servlet.ServletException;
+import jakarta.servlet.annotation.WebListener;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import jakarta.servlet.http.HttpSession;
 import javax.xml.crypto.dsig.CanonicalizationMethod;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
@@ -559,8 +558,6 @@ public class SPFormAuthenticationMechanism extends ServletFormAuthenticationMech
                     principal = (Principal) session.getAttribute(GeneralConstants.PRINCIPAL_ID);
 
                 String username = principal.getName();
-                String password = EMPTY_PASSWORD;
-
                 if (logger.isTraceEnabled()) {
                     logger.trace("Roles determined for username=" + username + "=" + Arrays.toString(roles.toArray()));
                 }
@@ -572,7 +569,7 @@ public class SPFormAuthenticationMechanism extends ServletFormAuthenticationMech
 
                 final Principal userPrincipal = principal;
 
-                Account account = new AccountImpl(userPrincipal, new HashSet<String>(roles), password);
+                Account account = createAccount(userPrincipal, new HashSet<String>(roles));
 
                 account = identityManager.verify(account);
 
@@ -1063,8 +1060,6 @@ public class SPFormAuthenticationMechanism extends ServletFormAuthenticationMech
                 }
 
                 String username = principal.getName();
-                String password = EMPTY_PASSWORD;
-
                 if (logger.isTraceEnabled()) {
                     logger.trace("Roles determined for username=" + username + "=" + Arrays.toString(roles.toArray()));
                 }
@@ -1076,7 +1071,7 @@ public class SPFormAuthenticationMechanism extends ServletFormAuthenticationMech
 
                 final Principal userPrincipal = principal;
 
-                Account account = new AccountImpl(userPrincipal, new HashSet<String>(roles), password);
+                Account account = createAccount(userPrincipal, new HashSet<String>(roles));
 
                 account = identityManager.verify(account);
 
@@ -1109,6 +1104,20 @@ public class SPFormAuthenticationMechanism extends ServletFormAuthenticationMech
     private boolean isAjaxRequest(HttpServletRequest request) {
         String requestedWithHeader = request.getHeader(GeneralConstants.HTTP_HEADER_X_REQUESTED_WITH);
         return requestedWithHeader != null && "XMLHttpRequest".equalsIgnoreCase(requestedWithHeader);
+    }
+
+    private Account createAccount(final Principal principal, final Set<String> roles) {
+        return new Account() {
+            @Override
+            public Principal getPrincipal() {
+                return principal;
+            }
+
+            @Override
+            public Set<String> getRoles() {
+                return roles;
+            }
+        };
     }
 
     /**

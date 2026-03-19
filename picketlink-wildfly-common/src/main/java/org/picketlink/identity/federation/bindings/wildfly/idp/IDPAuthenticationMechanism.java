@@ -29,8 +29,8 @@ import org.picketlink.config.federation.IDPType;
 import org.picketlink.config.federation.PicketLinkType;
 import org.picketlink.identity.federation.core.audit.PicketLinkAuditHelper;
 
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 
 /**
  * @author pedroigor
