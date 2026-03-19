@@ -13,7 +13,8 @@
 
   <properties>
     <jakarta.servlet-api.version>6.0.0</jakarta.servlet-api.version>
-    <jbossxacml.version>2.0.4</jbossxacml.version>
+    <picketbox.version>5.0.3.jakarta.bravura.1</picketbox.version>
+    <jbossxacml.version>2.1.8.jakarta.bravura.11</jbossxacml.version>
     <wildfly.version>30.0.1.Final</wildfly.version>
     <undertow.io.version>2.3.13.Final</undertow.io.version>
     <httpcomponents.version>4.2.5</httpcomponents.version>
@@ -124,7 +125,7 @@
   		<dependency>
   			<groupId>org.picketbox</groupId>
   			<artifactId>picketbox</artifactId>
-  			<version>5.0.3.jdk17.1</version>
+  			<version>${picketbox.version}</version>
   		</dependency>
   	</dependencies>
   </dependencyManagement>

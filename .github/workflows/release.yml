@@ -11,6 +11,14 @@ on:
         description: "Repository name under same owner that hosts Maven packages"
         required: true
         default: "picketlink"
+      picketbox_repository_name:
+        description: "Repository name under same owner that hosts PicketBox Maven packages"
+        required: true
+        default: "picketbox"
+      xacml_repository_name:
+        description: "Repository name under same owner that hosts jbossxacml Maven packages"
+        required: true
+        default: "security-xacml"
 
 permissions:
   contents: write
@@ -28,6 +36,8 @@ jobs:
       RELEASE_BRANCH: release/${{ github.event.inputs.version }}
       RELEASE_TAG: v${{ github.event.inputs.version }}
       DEPENDENCY_REPOSITORY: https://maven.pkg.github.com/${{ github.repository_owner }}/${{ github.event.inputs.dependency_repository_name }}
+      PICKETBOX_REPOSITORY: https://maven.pkg.github.com/${{ github.repository_owner }}/${{ github.event.inputs.picketbox_repository_name }}
+      XACML_REPOSITORY: https://maven.pkg.github.com/${{ github.repository_owner }}/${{ github.event.inputs.xacml_repository_name }}
       MAVEN_GITHUB_TOKEN: ${{ secrets.PACKAGES_TOKEN }}
     steps:
       - name: Checkout
@@ -64,6 +74,16 @@ jobs:
                 <username>${env.GITHUB_REPOSITORY_OWNER}</username>
                 <password>${env.MAVEN_GITHUB_TOKEN}</password>
               </server>
+              <server>
+                <id>github-picketbox</id>
+                <username>${env.GITHUB_REPOSITORY_OWNER}</username>
+                <password>${env.MAVEN_GITHUB_TOKEN}</password>
+              </server>
+              <server>
+                <id>github-xacml</id>
+                <username>${env.GITHUB_REPOSITORY_OWNER}</username>
+                <password>${env.MAVEN_GITHUB_TOKEN}</password>
+              </server>
             </servers>
             <profiles>
               <profile>
@@ -76,6 +96,26 @@ jobs:
                   <repository>
                     <id>github</id>
                     <url>${env.DEPENDENCY_REPOSITORY}</url>
+                    <releases>
+                      <enabled>true</enabled>
+                    </releases>
+                    <snapshots>
+                      <enabled>true</enabled>
+                    </snapshots>
+                  </repository>
+                  <repository>
+                    <id>github-picketbox</id>
+                    <url>${env.PICKETBOX_REPOSITORY}</url>
+                    <releases>
+                      <enabled>true</enabled>
+                    </releases>
+                    <snapshots>
+                      <enabled>true</enabled>
+                    </snapshots>
+                  </repository>
+                  <repository>
+                    <id>github-xacml</id>
+                    <url>${env.XACML_REPOSITORY}</url>
                     <releases>
                       <enabled>true</enabled>
                     </releases>
