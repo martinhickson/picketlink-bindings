@@ -85,7 +85,6 @@ import org.w3c.dom.Element;
 
 import jakarta.servlet.ServletContext;
 import jakarta.servlet.ServletException;
-import jakarta.servlet.annotation.WebListener;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
@@ -118,7 +117,6 @@ import static org.picketlink.identity.federation.web.util.ConfigurationUtil.getA
  * @author Anil Saldhana
  * @since November 04, 2013
  */
-@WebListener
 public class SPFormAuthenticationMechanism extends ServletFormAuthenticationMechanism {
 
     private static final PicketLinkLogger logger = PicketLinkLoggerFactory.getLogger();
