@@ -73,6 +73,13 @@
       </modules>
     </profile>
     <profile>
+      <id>wildfly36-it</id>
+      <modules>
+        <module>picketlink-wildfly-common</module>
+        <module>picketlink-wildfly-common/wildfly36-it</module>
+      </modules>
+    </profile>
+    <profile>
       <id>release</id>
       <activation>
         <property>
