@@ -25,9 +25,14 @@ import io.undertow.security.api.SecurityContext;
 import io.undertow.security.idm.Account;
 import io.undertow.server.HttpServerExchange;
 import io.undertow.servlet.handlers.ServletRequestContext;
+import jakarta.servlet.ServletContext;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
 import java.lang.reflect.Method;
+import java.util.ArrayList;
+import org.picketlink.identity.federation.bindings.wildfly.auth.ElytronIdentityEstablishmentResult;
+import org.picketlink.identity.federation.bindings.wildfly.auth.JaasBridgeElytronIdentityEstablishment;
+import org.picketlink.identity.federation.bindings.wildfly.auth.JaasElytronAuthenticationBridgeContext;
 import org.jboss.logging.Logger;
 import org.picketlink.common.constants.GeneralConstants;
 
@@ -42,14 +47,16 @@ public final class PicketLinkElytronSamlAuthenticator {
     }
 
     public static PicketLinkElytronAuthOutcome authenticate(PicketLinkElytronHttpFacade facade) {
-        if (facade.getSessionStore().isLoggedIn()) {
+        HttpServletRequest request = facade.getServletRequest();
+        if (request != null && isGlobalLogout(request)) {
+            facade.getSessionStore().logoutAccount();
+        } else if (facade.getSessionStore().isLoggedIn()) {
             return PicketLinkElytronAuthOutcome.AUTHENTICATED;
         }
 
         Object spMechanism = facade.lookupSpMechanismObject();
         HttpServerExchange exchange = facade.getExchange();
         SecurityContext securityContext = facade.getSecurityContext();
-        HttpServletRequest request = facade.getServletRequest();
         if (spMechanism == null || exchange == null) {
             LOGGER.debug("No SP deployment context for Elytron SAML evaluation.");
             return PicketLinkElytronAuthOutcome.NOT_AUTHENTICATED;
@@ -152,10 +159,40 @@ public final class PicketLinkElytronSamlAuthenticator {
             return;
         }
         Account account = (Account) savedAccount;
+        if (facade.isJaasBridgePath()) {
+            completeJaasDeferredAuthentication(facade, exchange, account);
+            return;
+        }
         PicketLinkSamlPrincipal principal = new PicketLinkSamlPrincipal(
                 account.getPrincipal().getName(), account.getRoles());
         facade.getSessionStore().restoreRequest();
         facade.completeAuthentication(principal);
+    }
+
+    private static void completeJaasDeferredAuthentication(
+            PicketLinkElytronHttpFacade facade, HttpServerExchange exchange, Account account) {
+        ServletContext servletContext = facade.getServletContext();
+        JaasBridgeElytronIdentityEstablishment establishment =
+                JaasBridgeElytronIdentityEstablishment.resolve(servletContext, null);
+        if (establishment == null) {
+            return;
+        }
+        JaasElytronAuthenticationBridgeContext bridgeContext = JaasElytronAuthenticationBridgeContext.builder()
+                .httpServerExchange(exchange)
+                .securityContext(facade.getSecurityContext())
+                .servletContext(servletContext)
+                .username(account.getPrincipal().getName())
+                .roles(account.getRoles() != null ? new ArrayList<>(account.getRoles()) : null)
+                .samlPrincipal(account.getPrincipal())
+                .undertowAccount(account)
+                .build();
+        ElytronIdentityEstablishmentResult result = establishment.establish(bridgeContext);
+        if (!result.isSuccess()) {
+            PicketLinkSamlPrincipal principal = new PicketLinkSamlPrincipal(
+                    account.getPrincipal().getName(), account.getRoles());
+            facade.getSessionStore().restoreRequest();
+            facade.completeAuthentication(principal);
+        }
     }
 
     private static boolean isChallengeSent(Object challengeResult) {
@@ -181,6 +218,11 @@ public final class PicketLinkElytronSamlAuthenticator {
             }
         }
         return null;
+    }
+
+    private static boolean isGlobalLogout(HttpServletRequest request) {
+        String gloStr = request.getParameter(GeneralConstants.GLOBAL_LOGOUT);
+        return gloStr != null && "true".equalsIgnoreCase(gloStr);
     }
 
     private static boolean isNotNull(String value) {

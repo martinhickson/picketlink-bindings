@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<web-app xmlns="https://jakarta.ee/xml/ns/jakartaee"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="https://jakarta.ee/xml/ns/jakartaee https://jakarta.ee/xml/ns/jakartaee/web-app_6_0.xsd"
+         version="6.0">
+
+    <display-name>PicketLink SP Generated Metadata</display-name>
+
+    <servlet>
+        <servlet-name>MetadataServletSP</servlet-name>
+        <servlet-class>org.picketlink.identity.federation.web.servlets.saml.MetadataServletSP</servlet-class>
+        <init-param>
+            <param-name>configFile</param-name>
+            <param-value>/WEB-INF/metadata-config.xml</param-value>
+        </init-param>
+        <load-on-startup>1</load-on-startup>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>MetadataServletSP</servlet-name>
+        <url-pattern>/metadata</url-pattern>
+    </servlet-mapping>
+</web-app>

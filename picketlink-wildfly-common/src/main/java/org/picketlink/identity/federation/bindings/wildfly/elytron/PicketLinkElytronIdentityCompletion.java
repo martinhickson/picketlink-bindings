@@ -79,6 +79,10 @@ public final class PicketLinkElytronIdentityCompletion {
 
             storeSession(httpExchange, principal, securityIdentity);
 
+            if (PicketLinkElytronUndertowBridgeContext.isDeferred()) {
+                return ElytronIdentityEstablishmentResult.success(context.getUndertowAccount(), true);
+            }
+
             httpExchange.authenticationComplete(securityIdentity, MECHANISM_NAME);
             ElytronSecurityContextSupport.completeAuthentication(securityContext, securityIdentity, MECHANISM_NAME);
             ElytronSessionIdentitySupport.storeFromAccount(

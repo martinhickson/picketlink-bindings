@@ -27,10 +27,12 @@ import io.undertow.security.idm.Account;
 import io.undertow.server.HttpServerExchange;
 import io.undertow.servlet.handlers.ServletRequestContext;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.Set;
+import javax.security.auth.callback.CallbackHandler;
 import org.picketlink.identity.federation.bindings.wildfly.auth.ElytronSecurityContextSupport;
 import org.wildfly.elytron.web.undertow.server.ElytronHttpExchange;
 import org.wildfly.security.auth.server.SecurityIdentity;
@@ -76,6 +78,10 @@ public final class PicketLinkElytronUndertowBridge {
     }
 
     public static boolean delegateAuthenticate(HttpServerRequest request) {
+        return delegateAuthenticate(request, null);
+    }
+
+    public static boolean delegateAuthenticate(HttpServerRequest request, CallbackHandler callbackHandler) {
         HttpServerExchange exchange = resolveExchange(request);
         if (exchange == null) {
             return false;
@@ -90,19 +96,25 @@ public final class PicketLinkElytronUndertowBridge {
         }
 
         ClassLoader previous = Thread.currentThread().getContextClassLoader();
-        ServletRequestContext servletRequestContext = exchange.getAttachment(ServletRequestContext.ATTACHMENT_KEY);
-        ClassLoader deploymentLoader = servletRequestContext != null
-                ? servletRequestContext.getCurrentServletContext().getClassLoader()
-                : previous;
+        ClassLoader mechanismLoader = mechanism.getClass().getClassLoader();
         try {
-            Thread.currentThread().setContextClassLoader(deploymentLoader);
+            PicketLinkElytronUndertowBridgeContext.setDeferred(true);
+            Thread.currentThread().setContextClassLoader(mechanismLoader != null ? mechanismLoader : previous);
+            if (!hasSamlTraffic(exchange, request)) {
+                if (invokeSendChallenge(mechanism, exchange, securityContext, request)) {
+                    return true;
+                }
+            }
             Method authenticate = mechanism.getClass().getMethod(
                     "authenticate", HttpServerExchange.class, SecurityContext.class);
             Object outcome = authenticate.invoke(mechanism, exchange, securityContext);
             if (AuthenticationMechanism.AuthenticationMechanismOutcome.AUTHENTICATED.equals(outcome)) {
-                return completeDelegatedAuthentication(request, securityContext);
+                return completeDelegatedAuthentication(request, securityContext, callbackHandler);
             }
             if (AuthenticationMechanism.AuthenticationMechanismOutcome.NOT_AUTHENTICATED.equals(outcome)) {
+                if (!isResponseCommitted(exchange) && invokeSendChallenge(mechanism, exchange, securityContext, request)) {
+                    return true;
+                }
                 request.authenticationInProgress(response -> {});
                 return true;
             }
@@ -110,23 +122,105 @@ public final class PicketLinkElytronUndertowBridge {
         } catch (ReflectiveOperationException e) {
             return false;
         } finally {
+            PicketLinkElytronUndertowBridgeContext.clear();
             Thread.currentThread().setContextClassLoader(previous);
         }
     }
 
+    private static boolean invokeSendChallenge(
+            Object mechanism, HttpServerExchange exchange, SecurityContext securityContext, HttpServerRequest request)
+            throws ReflectiveOperationException {
+        Method sendChallenge = mechanism.getClass().getMethod(
+                "sendChallenge", HttpServerExchange.class, SecurityContext.class);
+        Object challengeResult = sendChallenge.invoke(mechanism, exchange, securityContext);
+        if (isChallengeSent(challengeResult) || isResponseCommitted(exchange)) {
+            request.authenticationInProgress(response -> {});
+            return true;
+        }
+        return false;
+    }
+
+    private static boolean hasSamlTraffic(HttpServerExchange exchange, HttpServerRequest request) {
+        ServletRequestContext servletRequestContext = exchange.getAttachment(ServletRequestContext.ATTACHMENT_KEY);
+        if (servletRequestContext != null) {
+            HttpServletRequest servletRequest = (HttpServletRequest) servletRequestContext.getServletRequest();
+            if (hasParameter(servletRequest, SAML_RESPONSE_PARAMETER)
+                    || hasParameter(servletRequest, SAML_REQUEST_PARAMETER)) {
+                return true;
+            }
+            HttpSession session = servletRequest.getSession(false);
+            if (session != null && session.getAttribute(PicketLinkElytronSpMechanismRegistry.FORM_ACCOUNT_NOTE) != null) {
+                return true;
+            }
+        }
+        return hasSamlParameter(request, SAML_RESPONSE_PARAMETER)
+                || hasSamlParameter(request, SAML_REQUEST_PARAMETER);
+    }
+
     private static boolean completeDelegatedAuthentication(
-            HttpServerRequest request, SecurityContext securityContext) {
-        Account account = securityContext.getAuthenticatedAccount();
-        if (account == null) {
-            return false;
+            HttpServerRequest request, SecurityContext securityContext, CallbackHandler callbackHandler) {
+        Account savedAccount = readSavedAccount(securityContext);
+        if (savedAccount != null && callbackHandler != null) {
+            Set<String> roles = savedAccount.getRoles();
+            if (roles != null && !roles.isEmpty()) {
+                PicketLinkSamlPrincipal principal = toSamlPrincipal(savedAccount, roles);
+                org.wildfly.security.auth.server.SecurityIdentity identity =
+                        PicketLinkSecurityIdentityUtil.authorize(callbackHandler, principal);
+                if (identity != null) {
+                    identity = PicketLinkSecurityIdentityFactory.attachRoleMappers(identity, roles);
+                    PicketLinkElytronIdentityCompletion.storeSession(request, principal, identity);
+                    request.authenticationComplete();
+                    return true;
+                }
+            }
         }
 
-        Set<String> roles = account.getRoles();
+        PicketLinkSamlSession samlSession = PicketLinkElytronIdentityCompletion.readSession(request);
+        if (samlSession != null && callbackHandler != null) {
+            org.wildfly.security.auth.server.SecurityIdentity identity =
+                    PicketLinkElytronIdentityCompletion.authorizeFromSession(request, callbackHandler, null);
+            if (identity != null) {
+                PicketLinkElytronIdentityCompletion.storeSession(request, samlSession.getPrincipal(), identity);
+                request.authenticationComplete();
+                return true;
+            }
+        }
+
+        Account account = securityContext.getAuthenticatedAccount();
+        if (account == null) {
+            account = readSavedAccount(securityContext);
+        }
+
+        Set<String> roles = account != null ? account.getRoles() : null;
+        if ((roles == null || roles.isEmpty()) && account == null) {
+            account = readSavedAccount(securityContext);
+            roles = account != null ? account.getRoles() : null;
+        }
         if (roles == null || roles.isEmpty()) {
             roles = readSavedAccountRoles(securityContext);
         }
 
-        SecurityIdentity securityIdentity = extractSecurityIdentity(account);
+        if (callbackHandler != null && account != null && roles != null && !roles.isEmpty()) {
+            PicketLinkSamlPrincipal principal = toSamlPrincipal(account, roles);
+            org.wildfly.security.auth.server.SecurityIdentity identity =
+                    PicketLinkSecurityIdentityUtil.authorize(callbackHandler, principal);
+            if (identity != null) {
+                identity = PicketLinkSecurityIdentityFactory.attachRoleMappers(identity, roles);
+                PicketLinkElytronIdentityCompletion.storeSession(request, principal, identity);
+                request.authenticationComplete();
+                return true;
+            }
+        }
+
+        if (account == null) {
+            return false;
+        }
+
+        if (roles == null || roles.isEmpty()) {
+            roles = readSavedAccountRoles(securityContext);
+        }
+
+        org.wildfly.security.auth.server.SecurityIdentity securityIdentity = extractSecurityIdentity(account);
         if (securityIdentity == null && ElytronSecurityContextSupport.isElytronSecurityContext(securityContext)) {
             securityIdentity = ElytronSecurityContextSupport.createSecurityIdentity(
                     securityContext, toSamlPrincipal(account, roles), roles);
@@ -142,6 +236,23 @@ public final class PicketLinkElytronUndertowBridge {
         PicketLinkElytronIdentityCompletion.storeSession(request, toSamlPrincipal(account, roles), securityIdentity);
         request.authenticationComplete();
         return true;
+    }
+
+    private static Account readSavedAccount(SecurityContext securityContext) {
+        HttpServerExchange exchange = resolveExchangeFromContext(securityContext);
+        if (exchange == null) {
+            return null;
+        }
+        ServletRequestContext servletRequestContext = exchange.getAttachment(ServletRequestContext.ATTACHMENT_KEY);
+        if (servletRequestContext == null) {
+            return null;
+        }
+        HttpSession session = ((HttpServletRequest) servletRequestContext.getServletRequest()).getSession(false);
+        if (session == null) {
+            return null;
+        }
+        Object saved = session.getAttribute(PicketLinkElytronSpMechanismRegistry.FORM_ACCOUNT_NOTE);
+        return saved instanceof Account ? (Account) saved : null;
     }
 
     private static Set<String> readSavedAccountRoles(SecurityContext securityContext) {
@@ -210,5 +321,26 @@ public final class PicketLinkElytronUndertowBridge {
         }
         String value = request.getParameter(name);
         return value != null && !value.isBlank();
+    }
+
+    private static boolean isResponseCommitted(HttpServerExchange exchange) {
+        ServletRequestContext servletRequestContext = exchange.getAttachment(ServletRequestContext.ATTACHMENT_KEY);
+        if (servletRequestContext == null) {
+            return false;
+        }
+        HttpServletResponse response = (HttpServletResponse) servletRequestContext.getServletResponse();
+        return response != null && response.isCommitted();
+    }
+
+    private static boolean isChallengeSent(Object challengeResult) {
+        if (challengeResult == null) {
+            return false;
+        }
+        try {
+            Method method = challengeResult.getClass().getMethod("isChallengeSent");
+            return Boolean.TRUE.equals(method.invoke(challengeResult));
+        } catch (ReflectiveOperationException e) {
+            return false;
+        }
     }
 }

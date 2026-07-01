@@ -41,6 +41,7 @@ import org.picketlink.config.federation.PicketLinkType;
 import org.picketlink.config.federation.ProviderType;
 import org.picketlink.config.federation.SPType;
 import org.picketlink.identity.federation.core.audit.PicketLinkAuditHelper;
+import org.picketlink.identity.federation.bindings.wildfly.elytron.PicketLinkElytronLocalLogoutHandler;
 import org.picketlink.identity.federation.bindings.wildfly.elytron.PicketLinkElytronSpMechanismRegistry;
 import org.picketlink.identity.federation.web.util.ConfigurationUtil;
 import org.picketlink.identity.federation.web.util.SAMLConfigurationProvider;
@@ -133,6 +134,7 @@ public class SPServletExtension implements ServletExtension {
                 });
 
                 SPType spType = (SPType) providerType;
+                deploymentInfo.addSecurityWrapper(PicketLinkElytronLocalLogoutHandler.wrapper(spType));
                 IdentityURLProviderType identityURLProvider = spType.getIdentityURLProvider();
 
                 if (identityURLProvider != null) {

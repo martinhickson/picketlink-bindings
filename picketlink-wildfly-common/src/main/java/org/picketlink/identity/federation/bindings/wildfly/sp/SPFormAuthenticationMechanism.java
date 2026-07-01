@@ -47,10 +47,12 @@ import org.picketlink.identity.federation.api.saml.v2.metadata.MetaDataExtractor
 import org.picketlink.identity.federation.bindings.wildfly.ServiceProviderSAMLContext;
 import org.picketlink.identity.federation.bindings.wildfly.elytron.PicketLinkElytronAuthOutcome;
 import org.picketlink.identity.federation.bindings.wildfly.elytron.PicketLinkElytronCompletionContext;
+import org.picketlink.identity.federation.bindings.wildfly.elytron.PicketLinkElytronUndertowBridgeContext;
 import org.picketlink.identity.federation.bindings.wildfly.elytron.PicketLinkElytronHttpFacade;
 import org.picketlink.identity.federation.bindings.wildfly.elytron.PicketLinkElytronIdentityCompletion;
 import org.picketlink.identity.federation.bindings.wildfly.elytron.PicketLinkElytronSpMechanismRegistry;
 import org.picketlink.identity.federation.bindings.wildfly.elytron.PicketLinkSamlPrincipal;
+import org.picketlink.identity.federation.bindings.wildfly.elytron.PicketLinkSamlSession;
 import org.picketlink.identity.federation.bindings.wildfly.auth.DirectElytronIdentityEstablishment;
 import org.picketlink.identity.federation.bindings.wildfly.auth.ElytronIdentityEstablishment;
 import org.picketlink.identity.federation.bindings.wildfly.auth.ElytronIdentityEstablishmentProvider;
@@ -252,6 +254,27 @@ public class SPFormAuthenticationMechanism extends ServletFormAuthenticationMech
 
         HttpSession session = request.getSession(true);
 
+        ServiceProviderSAMLWorkflow serviceProviderSAMLWorkflow = new ServiceProviderSAMLWorkflow();
+
+        if (serviceProviderSAMLWorkflow.isLocalLogoutRequest(request)) {
+            try {
+                serviceProviderSAMLWorkflow.sendToLogoutPage(request, response, session, servletContext, this.spConfiguration.getLogOutPage());
+            } catch (ServletException e) {
+                logger.samlLogoutError(e);
+                throw new RuntimeException(e);
+            } catch (IOException e1) {
+                logger.samlLogoutError(e1);
+                throw new RuntimeException(e1);
+            }
+            return AuthenticationMechanismOutcome.NOT_AUTHENTICATED;
+        }
+
+        if (serviceProviderSAMLWorkflow.isGlobalLogout(request)) {
+            ElytronSessionIdentitySupport.clear(session);
+            session.removeAttribute(PicketLinkSamlSession.SESSION_KEY);
+            return AuthenticationMechanismOutcome.NOT_AUTHENTICATED;
+        }
+
         // check if this call is resulting from the redirect after successful authentication.
         // if so, make the authentication successful and continue the original request
         //if (saveRestoreRequest && matchRequest(request)) {
@@ -269,23 +292,6 @@ public class SPFormAuthenticationMechanism extends ServletFormAuthenticationMech
                     return AuthenticationMechanismOutcome.AUTHENTICATED;
                 }
             }
-        }
-        ServiceProviderSAMLWorkflow serviceProviderSAMLWorkflow = new ServiceProviderSAMLWorkflow();
-
-        // Eagerly look for Local LogOut
-        boolean localLogout = serviceProviderSAMLWorkflow.isLocalLogoutRequest(request);
-
-        if (localLogout) {
-            try {
-                serviceProviderSAMLWorkflow.sendToLogoutPage(request, response, session, servletContext, this.spConfiguration.getLogOutPage());
-            } catch (ServletException e) {
-                logger.samlLogoutError(e);
-                throw new RuntimeException(e);
-            } catch (IOException e1) {
-                logger.samlLogoutError(e1);
-                throw new RuntimeException(e1);
-            }
-            return AuthenticationMechanismOutcome.NOT_AUTHENTICATED;
         }
 
         String samlRequest = request.getParameter(GeneralConstants.SAML_REQUEST_KEY);
@@ -371,7 +377,21 @@ public class SPFormAuthenticationMechanism extends ServletFormAuthenticationMech
         // So this is a user request
         SAML2HandlerResponse saml2HandlerResponse = null;
         try {
-            ServiceProviderBaseProcessor baseProcessor = new ServiceProviderBaseProcessor(postBinding, serviceURL, this.configuration, this.idpMetadata);
+            ServiceProviderBaseProcessor baseProcessor = new ServiceProviderBaseProcessor(postBinding, serviceURL, this.configuration, this.idpMetadata) {
+                @Override
+                protected boolean isLogOutRequest(HTTPContext context) {
+                    HttpServletRequest req = context.getRequest();
+                    String gloStr = req.getParameter(GeneralConstants.GLOBAL_LOGOUT);
+                    if (!StringUtil.isNotNull(gloStr) || !"true".equalsIgnoreCase(gloStr)) {
+                        return false;
+                    }
+                    if (req.getUserPrincipal() != null) {
+                        return true;
+                    }
+                    HttpSession sess = req.getSession(false);
+                    return sess != null && sess.getAttribute(GeneralConstants.PRINCIPAL_ID) != null;
+                }
+            };
             if (issuerID != null)
                 baseProcessor.setIssuer(issuerID);
 
@@ -501,7 +521,8 @@ public class SPFormAuthenticationMechanism extends ServletFormAuthenticationMech
         }
 
         PicketLinkElytronHttpFacade elytronFacade = PicketLinkElytronCompletionContext.get();
-        if (elytronFacade != null && elytronFacade.isDirectPath() && account != null) {
+        if (account != null && ((elytronFacade != null && elytronFacade.isDirectPath())
+                || PicketLinkElytronUndertowBridgeContext.isDeferred())) {
             HttpSession session = facadeServletSession(httpServerExchange);
             if (session != null) {
                 session.setAttribute(PicketLinkElytronSpMechanismRegistry.FORM_ACCOUNT_NOTE, account);

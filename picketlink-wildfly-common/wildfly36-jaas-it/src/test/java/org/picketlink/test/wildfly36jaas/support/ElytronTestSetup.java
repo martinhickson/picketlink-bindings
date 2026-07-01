@@ -1,16 +1,15 @@
-package org.picketlink.test.wildfly36.support;
+package org.picketlink.test.wildfly36jaas.support;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.io.InputStream;
 import org.jboss.as.arquillian.api.ServerSetupTask;
 import org.jboss.as.arquillian.container.ManagementClient;
 import org.jboss.as.controller.client.ModelControllerClient;
 import org.jboss.dmr.ModelNode;
 import org.picketlink.identity.federation.bindings.wildfly.elytron.PicketLinkSamlSecurityRealm;
-import org.picketlink.test.wildfly36.deployment.SamlDeployments;
-import org.picketlink.test.wildfly36.support.PicketLinkModuleInstaller;
+import org.picketlink.test.wildfly36jaas.deployment.SamlDeployments;
+import org.picketlink.test.wildfly36jaas.support.PicketLinkModuleInstaller;
 
 public class ElytronTestSetup implements ServerSetupTask {
 
@@ -142,12 +141,6 @@ public class ElytronTestSetup implements ServerSetupTask {
         Files.createDirectories(configDir);
         Files.writeString(configDir.resolve(USERS_FILE), "user1=password1\n");
         Files.writeString(configDir.resolve(ROLES_FILE), "user1=role1\n");
-        try (InputStream keystore = ElytronTestSetup.class.getResourceAsStream("/deployments/jbid_test_keystore.jks")) {
-            if (keystore == null) {
-                throw new IllegalStateException("Missing test keystore resource /deployments/jbid_test_keystore.jks");
-            }
-            Files.copy(keystore, configDir.resolve("jbid_test_keystore.jks"), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
-        }
     }
 
     private static void writeSpJaasConfig() throws Exception {

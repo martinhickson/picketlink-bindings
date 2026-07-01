@@ -1,0 +1,20 @@
+<PicketLinkIDP xmlns="urn:picketlink:identity-federation:config:2.1"
+               HostedURI="http://localhost:${test.http.port}/idp-metadata-generated/logout-done"
+               AttributeManager="org.picketlink.identity.federation.core.impl.EmptyAttributeManager"
+               RoleGenerator="org.picketlink.test.wildfly36.deployment.TestRoleGenerator">
+    <IdentityURL>http://localhost:${test.http.port}/idp-metadata-generated/</IdentityURL>
+    <Trust>
+        <Domains>localhost</Domains>
+    </Trust>
+    <KeyProvider ClassName="org.picketlink.identity.federation.core.impl.KeyStoreKeyManager">
+        <Auth Key="KeyStoreURL" Value="${picketlink.test.keystore.path}"/>
+        <Auth Key="KeyStorePass" Value="store123"/>
+        <Auth Key="SigningKeyPass" Value="test123"/>
+        <Auth Key="SigningKeyAlias" Value="servercert"/>
+        <ValidatingAlias Key="localhost" Value="servercert"/>
+        <SigningAlias>servercert</SigningAlias>
+    </KeyProvider>
+    <MetaDataProvider ClassName="org.picketlink.identity.federation.core.saml.md.providers.IDPMetadataProvider">
+        <Option Key="EntityId" Value="http://localhost:${test.http.port}/idp-metadata-generated/"/>
+    </MetaDataProvider>
+</PicketLinkIDP>

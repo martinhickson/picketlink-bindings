@@ -11,22 +11,19 @@
     <relativePath>../../pom.xml</relativePath>
   </parent>
 
-  <artifactId>picketlink-wildfly36-it</artifactId>
+  <artifactId>picketlink-wildfly36-jaas-it</artifactId>
   <packaging>jar</packaging>
-  <name>PicketLink WildFly 36 Integration Tests</name>
-  <description>Arquillian integration tests for PicketLink SAML2 IDP and SP on WildFly 36</description>
+  <name>PicketLink WildFly 36 JAAS Bridge Integration Tests</name>
+  <description>Arquillian integration tests for PicketLink SAML2 SP jaas-bridge Elytron strategy on WildFly 36</description>
 
   <properties>
     <wildfly.version>36.0.1.Final</wildfly.version>
     <wildfly-arquillian.version>5.1.0.Final</wildfly-arquillian.version>
     <jboss.home>${project.build.directory}/wildfly-${wildfly.version}</jboss.home>
-    <picketlink.test.keystore.path>${jboss.home}/standalone/configuration/jbid_test_keystore.jks</picketlink.test.keystore.path>
-    <test.http.port>8180</test.http.port>
+    <test.http.port>8380</test.http.port>
     <httpcomponents.version>4.2.5</httpcomponents.version>
     <httpunit.version>1.7</httpunit.version>
     <junit.version>4.13.2</junit.version>
-    <bytebuddy.version>1.15.11</bytebuddy.version>
-    <trace.modules.staging>${project.build.directory}/trace-modules</trace.modules.staging>
   </properties>
 
   <dependencyManagement>
@@ -112,18 +109,6 @@
       <version>1.6R7</version>
       <scope>test</scope>
     </dependency>
-    <dependency>
-      <groupId>net.bytebuddy</groupId>
-      <artifactId>byte-buddy</artifactId>
-      <version>${bytebuddy.version}</version>
-      <scope>test</scope>
-    </dependency>
-    <dependency>
-      <groupId>net.bytebuddy</groupId>
-      <artifactId>byte-buddy-agent</artifactId>
-      <version>${bytebuddy.version}</version>
-      <scope>test</scope>
-    </dependency>
   </dependencies>
 
   <build>
@@ -131,16 +116,6 @@
       <testResource>
         <directory>src/test/resources</directory>
         <filtering>true</filtering>
-        <excludes>
-          <exclude>**/*.jks</exclude>
-        </excludes>
-      </testResource>
-      <testResource>
-        <directory>src/test/resources</directory>
-        <filtering>false</filtering>
-        <includes>
-          <include>**/*.jks</include>
-        </includes>
       </testResource>
       <testResource>
         <directory>src/test/modules</directory>
@@ -167,28 +142,6 @@
               <excludeGroupIds>org.wildfly.arquillian,org.jboss.arquillian,org.jboss.shrinkwrap,junit,httpunit,org.apache.httpcomponents,rhino,org.apache.cxf</excludeGroupIds>
             </configuration>
           </execution>
-          <execution>
-            <id>copy-bytebuddy-for-trace-modules</id>
-            <phase>generate-test-resources</phase>
-            <goals>
-              <goal>copy</goal>
-            </goals>
-            <configuration>
-              <outputDirectory>${project.build.directory}/dependency</outputDirectory>
-              <artifactItems>
-                <artifactItem>
-                  <groupId>net.bytebuddy</groupId>
-                  <artifactId>byte-buddy</artifactId>
-                  <version>${bytebuddy.version}</version>
-                </artifactItem>
-                <artifactItem>
-                  <groupId>net.bytebuddy</groupId>
-                  <artifactId>byte-buddy-agent</artifactId>
-                  <version>${bytebuddy.version}</version>
-                </artifactItem>
-              </artifactItems>
-            </configuration>
-          </execution>
         </executions>
       </plugin>
       <plugin>
@@ -212,44 +165,6 @@
         </executions>
       </plugin>
       <plugin>
-        <groupId>org.apache.maven.plugins</groupId>
-        <artifactId>maven-antrun-plugin</artifactId>
-        <version>3.1.0</version>
-        <executions>
-          <execution>
-            <id>stage-trace-modules</id>
-            <phase>process-test-classes</phase>
-            <goals>
-              <goal>run</goal>
-            </goals>
-            <configuration>
-              <target>
-                <mkdir dir="${trace.modules.staging}/net/bytebuddy/main"/>
-                <mkdir dir="${trace.modules.staging}/org/picketlink/elytron-trace/main"/>
-                <copy file="${project.build.directory}/dependency/byte-buddy-${bytebuddy.version}.jar"
-                      tofile="${trace.modules.staging}/net/bytebuddy/main/byte-buddy.jar"
-                      failonerror="true"/>
-                <copy file="${project.build.directory}/dependency/byte-buddy-agent-${bytebuddy.version}.jar"
-                      tofile="${trace.modules.staging}/net/bytebuddy/main/byte-buddy-agent.jar"
-                      failonerror="true"/>
-                <copy file="${project.build.directory}/test-classes/modules/net/bytebuddy/main/module.xml"
-                      todir="${trace.modules.staging}/net/bytebuddy/main"/>
-                <copy file="${project.build.directory}/test-classes/modules/org/picketlink/elytron-trace/main/module.xml"
-                      todir="${trace.modules.staging}/org/picketlink/elytron-trace/main"/>
-                <jar destfile="${trace.modules.staging}/org/picketlink/elytron-trace/main/elytron-trace-agent.jar"
-                     manifest="${project.basedir}/src/test/assembly/MANIFEST.MF">
-                  <fileset dir="${project.build.testOutputDirectory}">
-                    <include name="org/picketlink/test/wildfly36/bytebuddy/**"/>
-                  </fileset>
-                  <zipfileset src="${project.build.directory}/dependency/byte-buddy-${bytebuddy.version}.jar"/>
-                  <zipfileset src="${project.build.directory}/dependency/byte-buddy-agent-${bytebuddy.version}.jar"/>
-                </jar>
-              </target>
-            </configuration>
-          </execution>
-        </executions>
-      </plugin>
-      <plugin>
         <groupId>org.codehaus.mojo</groupId>
         <artifactId>exec-maven-plugin</artifactId>
         <version>3.5.0</version>
@@ -261,26 +176,11 @@
               <goal>java</goal>
             </goals>
             <configuration>
-              <mainClass>org.picketlink.test.wildfly36.support.PicketLinkModuleInstaller</mainClass>
+              <mainClass>org.picketlink.test.wildfly36jaas.support.PicketLinkModuleInstaller</mainClass>
               <classpathScope>test</classpathScope>
               <arguments>
                 <argument>${jboss.home}</argument>
                 <argument>${project.build.directory}/test-libs</argument>
-              </arguments>
-            </configuration>
-          </execution>
-          <execution>
-            <id>install-trace-modules</id>
-            <phase>pre-integration-test</phase>
-            <goals>
-              <goal>java</goal>
-            </goals>
-            <configuration>
-              <mainClass>org.picketlink.test.wildfly36.bytebuddy.TraceModuleInstaller</mainClass>
-              <classpathScope>test</classpathScope>
-              <arguments>
-                <argument>${jboss.home}</argument>
-                <argument>${trace.modules.staging}</argument>
               </arguments>
             </configuration>
           </execution>

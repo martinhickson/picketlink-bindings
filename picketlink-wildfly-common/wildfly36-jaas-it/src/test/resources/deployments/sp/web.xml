@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<web-app xmlns="https://jakarta.ee/xml/ns/jakartaee"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="https://jakarta.ee/xml/ns/jakartaee https://jakarta.ee/xml/ns/jakartaee/web-app_6_0.xsd"
+         version="6.0">
+
+    <display-name>PicketLink SP (jaas-bridge)</display-name>
+
+    <context-param>
+        <param-name>org.picketlink.elytron.identity.strategy</param-name>
+        <param-value>jaas-bridge</param-value>
+    </context-param>
+    <context-param>
+        <param-name>org.picketlink.jaas.login.entry</param-name>
+        <param-value>PicketLinkSP</param-value>
+    </context-param>
+
+    <security-constraint>
+        <web-resource-collection>
+            <web-resource-name>Secured</web-resource-name>
+            <url-pattern>/secured/*</url-pattern>
+        </web-resource-collection>
+        <auth-constraint>
+            <role-name>role1</role-name>
+        </auth-constraint>
+    </security-constraint>
+
+    <login-config>
+        <auth-method>PICKETLINK-SAML</auth-method>
+        <form-login-config>
+            <form-login-page>/FormLoginServlet</form-login-page>
+            <form-error-page>/error.html</form-error-page>
+        </form-login-config>
+    </login-config>
+
+    <security-role>
+        <role-name>role1</role-name>
+    </security-role>
+
+    <servlet>
+        <servlet-name>loginPage</servlet-name>
+        <servlet-class>org.picketlink.test.wildfly36jaas.deployment.FormLoginServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>loginPage</servlet-name>
+        <url-pattern>/FormLoginServlet</url-pattern>
+    </servlet-mapping>
+
+    <servlet>
+        <servlet-name>usernameServlet</servlet-name>
+        <servlet-class>org.picketlink.test.wildfly36jaas.deployment.SendUsernameServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>usernameServlet</servlet-name>
+        <url-pattern>/secured/*</url-pattern>
+    </servlet-mapping>
+</web-app>

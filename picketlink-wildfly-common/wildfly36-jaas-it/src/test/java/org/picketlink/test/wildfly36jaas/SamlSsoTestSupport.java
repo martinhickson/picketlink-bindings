@@ -1,4 +1,4 @@
-package org.picketlink.test.wildfly36;
+package org.picketlink.test.wildfly36jaas;
 
 import com.meterware.httpunit.GetMethodWebRequest;
 import com.meterware.httpunit.HttpUnitOptions;
@@ -19,6 +19,8 @@ import static org.junit.Assert.assertTrue;
 
 public final class SamlSsoTestSupport {
 
+    private static final int DEFAULT_PORT = 8380;
+
     private SamlSsoTestSupport() {
     }
 
@@ -37,7 +39,7 @@ public final class SamlSsoTestSupport {
 
         loginSpInitiatedSso(conversation, serviceProviderContext);
 
-        int port = Integer.getInteger("test.http.port", 8180);
+        int port = Integer.getInteger("test.http.port", DEFAULT_PORT);
         String logoutUri = "http://localhost:" + port + "/" + serviceProviderContext
                 + "/secured/test?" + GeneralConstants.GLOBAL_LOGOUT + "=true";
         WebResponse response = followSamlLogoutFlow(conversation, new GetMethodWebRequest(logoutUri));
@@ -68,7 +70,7 @@ public final class SamlSsoTestSupport {
 
         loginSpInitiatedSso(conversation, serviceProviderContext);
 
-        int port = Integer.getInteger("test.http.port", 8180);
+        int port = Integer.getInteger("test.http.port", DEFAULT_PORT);
         String logoutUri = "http://localhost:" + port + "/" + serviceProviderContext
                 + "/secured/test?" + GeneralConstants.LOCAL_LOGOUT + "=true";
         WebResponse response = conversation.getResponse(new GetMethodWebRequest(logoutUri));
@@ -107,7 +109,7 @@ public final class SamlSsoTestSupport {
 
     private static void loginSpInitiatedSso(WebConversation conversation, String serviceProviderContext)
             throws Exception {
-        int port = Integer.getInteger("test.http.port", 8180);
+        int port = Integer.getInteger("test.http.port", DEFAULT_PORT);
         String spUri = "http://localhost:" + port + "/" + serviceProviderContext + "/secured/test";
         WebResponse response = followRedirects(conversation, new GetMethodWebRequest(spUri));
 

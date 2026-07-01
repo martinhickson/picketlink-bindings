@@ -72,8 +72,9 @@ public class PicketLinkSamlHttpServerAuthenticationMechanism implements HttpServ
     }
 
     private void evaluateJaasBridgePath(PicketLinkElytronHttpFacade facade, HttpServerRequest request) {
-        if (PicketLinkElytronUndertowBridge.shouldDelegate(request)
-                && PicketLinkElytronUndertowBridge.delegateAuthenticate(request)) {
+        if (PicketLinkElytronUndertowBridge.shouldDelegate(request)) {
+            PicketLinkElytronUndertowBridge.delegateAuthenticate(request, callbackHandler);
+            PicketLinkElytronSamlAuthenticator.completeDeferredAuthentication(facade);
             return;
         }
         PicketLinkSamlSession session = PicketLinkElytronIdentityCompletion.readSession(request);

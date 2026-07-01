@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<EntityDescriptor xmlns="urn:oasis:names:tc:SAML:2.0:metadata"
+                  entityID="http://localhost:${test.http.port}/idp-metadata/">
+    <IDPSSODescriptor protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol"
+                      WantAuthnRequestsSigned="false">
+        <SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect"
+                             Location="http://localhost:${test.http.port}/idp-metadata/"/>
+        <SingleLogoutService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect"
+                             Location="http://localhost:${test.http.port}/idp-metadata/"/>
+    </IDPSSODescriptor>
+</EntityDescriptor>
