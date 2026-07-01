@@ -43,6 +43,18 @@ public final class SamlDeployments {
         return createMetadataWar("sp-metadata-generated.war", "sp-metadata-generated", false, false);
     }
 
+    public static WebArchive spMetadataAdminJsonWar() {
+        return createMetadataWar("sp-metadata-admin-json.war", "sp-metadata-admin-json", false);
+    }
+
+    public static WebArchive spMetadataPublishingEmptyWar() {
+        return createMetadataWar("sp-metadata-publishing-empty.war", "sp-metadata-publishing-empty", false);
+    }
+
+    public static WebArchive spMetadataJsonAuthDefaultWar() {
+        return createMetadataWar("sp-metadata-json-auth-default.war", "sp-metadata-json-auth-default", false);
+    }
+
     private static WebArchive createMetadataWar(String name, String resourceBase, boolean idp) {
         return createMetadataWar(name, resourceBase, idp, true);
     }

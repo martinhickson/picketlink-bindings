@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<EntityDescriptor xmlns="urn:oasis:names:tc:SAML:2.0:metadata"
+                  entityID="http://localhost:${test.http.port}/sp-metadata/">
+    <SPSSODescriptor protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol"
+                     AuthnRequestsSigned="true"
+                     WantAssertionsSigned="true">
+        <AssertionConsumerService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect"
+                                  Location="http://localhost:${test.http.port}/sp-metadata/"
+                                  index="0"
+                                  isDefault="true"/>
+        <SingleLogoutService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect"
+                             Location="http://localhost:${test.http.port}/sp-metadata/"/>
+    </SPSSODescriptor>
+</EntityDescriptor>

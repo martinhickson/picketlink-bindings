@@ -54,4 +54,44 @@ public class MetadataServletIT {
     public void testIdpMetadataServletGenerated() throws Exception {
         MetadataTestSupport.assertIdpGeneratedMetadataEndpoint();
     }
+
+    @Test
+    public void testAdminJsonMetadataDisabledByDefault() throws Exception {
+        MetadataTestSupport.assertAdminJsonMetadataDisabled("sp-metadata");
+    }
+
+    @Test
+    public void testMetadataPublishingDefaultsWhenElementAbsent() throws Exception {
+        MetadataTestSupport.assertMetadataPublishingAttributeDefaults("sp-metadata");
+    }
+
+    @Deployment(name = "sp-metadata-publishing-empty", order = 6, testable = false)
+    public static WebArchive deploySpMetadataPublishingEmpty() {
+        return SamlDeployments.spMetadataPublishingEmptyWar();
+    }
+
+    @Test
+    public void testMetadataPublishingDefaultsWhenElementEmpty() throws Exception {
+        MetadataTestSupport.assertMetadataPublishingAttributeDefaults("sp-metadata-publishing-empty");
+    }
+
+    @Deployment(name = "sp-metadata-json-auth-default", order = 7, testable = false)
+    public static WebArchive deploySpMetadataJsonAuthDefault() {
+        return SamlDeployments.spMetadataJsonAuthDefaultWar();
+    }
+
+    @Test
+    public void testMetadataPublishingAdminJsonRequireAuthDefaultsTrue() throws Exception {
+        MetadataTestSupport.assertAdminJsonMetadataRequiresAuthentication("sp-metadata-json-auth-default");
+    }
+
+    @Deployment(name = "sp-metadata-admin-json", order = 5, testable = false)
+    public static WebArchive deploySpMetadataAdminJson() {
+        return SamlDeployments.spMetadataAdminJsonWar();
+    }
+
+    @Test
+    public void testAdminJsonMetadataEnabledWhenConfigured() throws Exception {
+        MetadataTestSupport.assertAdminJsonMetadataEnabled("sp-metadata-admin-json");
+    }
 }

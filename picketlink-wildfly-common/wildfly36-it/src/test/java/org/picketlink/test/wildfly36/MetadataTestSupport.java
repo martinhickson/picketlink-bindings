@@ -84,6 +84,49 @@ public final class MetadataTestSupport {
                         HttpResponse.BodyHandlers.ofString());
     }
 
+    public static void assertAdminJsonMetadataDisabled(String context) throws Exception {
+        HttpResponse<String> response = fetchAdminJsonMetadata(context);
+        assertEquals("Admin JSON metadata should be disabled by default", HttpServletResponse.SC_NOT_FOUND,
+                response.statusCode());
+    }
+
+    public static void assertAdminJsonMetadataRequiresAuthentication(String context) throws Exception {
+        HttpResponse<String> response = fetchAdminJsonMetadata(context);
+        assertEquals("Admin JSON metadata should require authentication by default",
+                HttpServletResponse.SC_UNAUTHORIZED, response.statusCode());
+    }
+
+    /**
+     * Verifies PicketLink defaults when {@code MetadataPublishing} is absent or has no attributes:
+     * {@code XmlEnabled=true}, {@code AdminJsonEnabled=false}.
+     */
+    public static void assertMetadataPublishingAttributeDefaults(String context) throws Exception {
+        HttpResponse<String> xmlResponse = fetchMetadata(context);
+        assertEquals("XmlEnabled should default to true", HttpServletResponse.SC_OK, xmlResponse.statusCode());
+        assertTrue("Expected SAML metadata content type",
+                xmlResponse.headers().firstValue("content-type").orElse("").contains("application/samlmetadata+xml"));
+
+        assertAdminJsonMetadataDisabled(context);
+    }
+
+    public static void assertAdminJsonMetadataEnabled(String context) throws Exception {
+        HttpResponse<String> response = fetchAdminJsonMetadata(context);
+        assertEquals(HttpServletResponse.SC_OK, response.statusCode());
+        assertTrue("Expected JSON content type",
+                response.headers().firstValue("content-type").orElse("").contains("application/json"));
+        String body = response.body();
+        assertTrue("Expected entityId in JSON", body.contains("\"entityId\""));
+        assertTrue("Expected SP role in JSON", body.contains("\"role\""));
+        assertTrue("Expected assertionConsumerServices in JSON", body.contains("assertionConsumerServices"));
+    }
+
+    private static HttpResponse<String> fetchAdminJsonMetadata(String context) throws Exception {
+        String uri = "http://localhost:" + port() + "/" + context + "/api/admin/federation/metadata";
+        return HttpClient.newHttpClient()
+                .send(HttpRequest.newBuilder().uri(URI.create(uri)).GET().build(),
+                        HttpResponse.BodyHandlers.ofString());
+    }
+
     private static int port() {
         return Integer.getInteger("test.http.port", 8180);
     }

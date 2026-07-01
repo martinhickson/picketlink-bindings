@@ -1,0 +1,20 @@
+<PicketLink xmlns="urn:picketlink:identity-federation:config:2.1">
+    <PicketLinkSP xmlns="urn:picketlink:identity-federation:config:2.1"
+                  BindingType="REDIRECT" RelayState="someURL"
+                  LogOutPage="/logout.html">
+        <IdentityURL>http://localhost:${test.http.port}/idp/</IdentityURL>
+        <ServiceURL>http://localhost:${test.http.port}/sp-metadata-publishing-empty/</ServiceURL>
+        <KeyProvider ClassName="org.picketlink.identity.federation.core.impl.KeyStoreKeyManager">
+            <Auth Key="KeyStoreURL" Value="${picketlink.test.keystore.path}"/>
+            <Auth Key="KeyStorePass" Value="store123"/>
+            <Auth Key="SigningKeyPass" Value="test123"/>
+            <Auth Key="SigningKeyAlias" Value="servercert"/>
+            <ValidatingAlias Key="localhost" Value="servercert"/>
+            <SigningAlias>servercert</SigningAlias>
+        </KeyProvider>
+        <MetaDataProvider ClassName="org.picketlink.identity.federation.core.saml.md.providers.FileBasedEntityMetadataProvider">
+            <Option Key="FileName" Value="/WEB-INF/sp-metadata.xml"/>
+        </MetaDataProvider>
+        <MetadataPublishing/>
+    </PicketLinkSP>
+</PicketLink>
