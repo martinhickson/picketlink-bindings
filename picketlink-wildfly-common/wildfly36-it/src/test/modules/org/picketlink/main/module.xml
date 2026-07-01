@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Template only; PicketLinkModuleInstaller generates module.xml with explicit resource-root entries at test runtime. -->
+<module xmlns="urn:jboss:module:1.9" name="org.picketlink">
+    <resources>
+        <resource-root path="picketlink-wildfly-common.jar"/>
+    </resources>
+    <dependencies>
+        <module name="java.base"/>
+        <module name="java.logging"/>
+        <module name="java.naming"/>
+        <module name="java.xml"/>
+        <module name="jakarta.xml.bind.api"/>
+        <module name="org.wildfly.security.elytron"/>
+        <module name="org.wildfly.security.elytron-web.undertow-server"/>
+        <module name="org.wildfly.security.elytron-web.undertow-server-servlet"/>
+        <module name="io.undertow.core"/>
+        <module name="io.undertow.servlet"/>
+        <module name="jakarta.servlet.api"/>
+        <module name="org.jboss.logging"/>
+        <module name="org.picketlink.elytron-trace" optional="true"/>
+    </dependencies>
+</module>

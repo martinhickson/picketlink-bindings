@@ -45,6 +45,20 @@ import org.picketlink.config.federation.SPType;
 import org.picketlink.config.federation.handler.Handlers;
 import org.picketlink.identity.federation.api.saml.v2.metadata.MetaDataExtractor;
 import org.picketlink.identity.federation.bindings.wildfly.ServiceProviderSAMLContext;
+import org.picketlink.identity.federation.bindings.wildfly.elytron.PicketLinkElytronAuthOutcome;
+import org.picketlink.identity.federation.bindings.wildfly.elytron.PicketLinkElytronCompletionContext;
+import org.picketlink.identity.federation.bindings.wildfly.elytron.PicketLinkElytronHttpFacade;
+import org.picketlink.identity.federation.bindings.wildfly.elytron.PicketLinkElytronIdentityCompletion;
+import org.picketlink.identity.federation.bindings.wildfly.elytron.PicketLinkElytronSpMechanismRegistry;
+import org.picketlink.identity.federation.bindings.wildfly.elytron.PicketLinkSamlPrincipal;
+import org.picketlink.identity.federation.bindings.wildfly.auth.DirectElytronIdentityEstablishment;
+import org.picketlink.identity.federation.bindings.wildfly.auth.ElytronIdentityEstablishment;
+import org.picketlink.identity.federation.bindings.wildfly.auth.ElytronIdentityEstablishmentProvider;
+import org.picketlink.identity.federation.bindings.wildfly.auth.ElytronIdentityEstablishmentResult;
+import org.picketlink.identity.federation.bindings.wildfly.auth.ElytronSecurityContextSupport;
+import org.picketlink.identity.federation.bindings.wildfly.auth.JaasElytronAuthenticationBridgeContext;
+import org.picketlink.identity.federation.bindings.wildfly.auth.JaasElytronAuthenticationBridgeProvider;
+import org.picketlink.identity.federation.bindings.wildfly.auth.ElytronSessionIdentitySupport;
 import org.picketlink.identity.federation.core.SerializablePrincipal;
 import org.picketlink.identity.federation.core.audit.PicketLinkAuditEvent;
 import org.picketlink.identity.federation.core.audit.PicketLinkAuditEventType;
@@ -146,6 +160,15 @@ public class SPFormAuthenticationMechanism extends ServletFormAuthenticationMech
     public static final String FORM_ACCOUNT_NOTE = "picketlink.form.account";
     public static final String FORM_REQUEST_NOTE = "picketlink.REQUEST";
 
+    /**
+     * Optional override for {@link JaasElytronAuthenticationBridge}; otherwise resolved from
+     * {@code web.xml}, {@link JaasElytronAuthenticationBridgeProvider#SYSTEM_PROPERTY_BRIDGE_CLASS},
+     * or {@link java.util.ServiceLoader}.
+     */
+    protected String jaasElytronBridgeClassName;
+
+    private transient ElytronIdentityEstablishment elytronIdentityEstablishment;
+
     protected transient SAML2HandlerChain chain = null;
 
     protected SPType spConfiguration = null;
@@ -234,8 +257,17 @@ public class SPFormAuthenticationMechanism extends ServletFormAuthenticationMech
         //if (saveRestoreRequest && matchRequest(request)) {
         if (saveRestoreRequest) {
             Account savedAccount = (Account) session.getAttribute(FORM_ACCOUNT_NOTE);
-            if(savedAccount != null){
-                register(securityContext, savedAccount);
+            if (savedAccount != null) {
+                if (ElytronSessionIdentitySupport.restore(exchange, securityContext, savedAccount)) {
+                    Account restored = securityContext.getAuthenticatedAccount();
+                    if (restored != null && restored.getRoles() != null && !restored.getRoles().isEmpty()) {
+                        return AuthenticationMechanismOutcome.AUTHENTICATED;
+                    }
+                }
+                savedAccount = register(exchange, securityContext, savedAccount);
+                if (securityContext.isAuthenticated()) {
+                    return AuthenticationMechanismOutcome.AUTHENTICATED;
+                }
             }
         }
         ServiceProviderSAMLWorkflow serviceProviderSAMLWorkflow = new ServiceProviderSAMLWorkflow();
@@ -387,7 +419,7 @@ public class SPFormAuthenticationMechanism extends ServletFormAuthenticationMech
 
                 serviceProviderSAMLWorkflow.sendRequestToIDP(destination, samlResponseDocument, relayState, response, willSendRequest,
                         destinationQueryStringWithSignature, isHttpPostBinding());
-                return new ChallengeResult(false);
+                return new ChallengeResult(true);
             } catch (Exception e) {
                 logger.samlSPHandleRequestError(e);
                 throw logger.samlSPProcessingExceptionError(e);
@@ -401,8 +433,154 @@ public class SPFormAuthenticationMechanism extends ServletFormAuthenticationMech
         return false; // assume this is a fresh request
     }
 
-    protected void register(final SecurityContext securityContext, Account account) {
-        securityContext.authenticationComplete(account, "FORM", false);
+    /**
+     * Set the fully qualified class name of a custom {@link org.picketlink.identity.federation.bindings.wildfly.auth.JaasElytronAuthenticationBridge}
+     * when {@code org.picketlink.elytron.identity.strategy} is {@code jaas-bridge}
+     * (for example your application's existing JAAS-to-Elytron adapter).
+     */
+    public void setJaasElytronBridgeClassName(String jaasElytronBridgeClassName) {
+        this.jaasElytronBridgeClassName = jaasElytronBridgeClassName;
+        this.elytronIdentityEstablishment = null;
+    }
+
+    /**
+     * Elytron HTTP mechanism entry point for the {@code direct} identity strategy (Keycloak adapter pattern).
+     */
+    public PicketLinkElytronAuthOutcome evaluateForElytron(PicketLinkElytronHttpFacade facade) {
+        HttpServerExchange exchange = facade.getExchange();
+        SecurityContext securityContext = facade.getSecurityContext();
+        HttpServletRequest request = facade.getServletRequest();
+        if (exchange == null || request == null) {
+            return PicketLinkElytronAuthOutcome.NOT_AUTHENTICATED;
+        }
+
+        String samlResponse = request.getParameter(GeneralConstants.SAML_RESPONSE_KEY);
+        String samlRequest = request.getParameter(GeneralConstants.SAML_REQUEST_KEY);
+
+        try {
+            if (isNotNull(samlResponse)) {
+                return mapElytronOutcome(facade, handleSAMLResponse(exchange, securityContext));
+            }
+            if (isNotNull(samlRequest)) {
+                return mapElytronOutcome(facade, handleSAMLRequest(exchange, securityContext));
+            }
+            if (request.getUserPrincipal() != null) {
+                return PicketLinkElytronAuthOutcome.AUTHENTICATED;
+            }
+
+            ChallengeResult challengeResult = sendChallenge(exchange, securityContext);
+            if (challengeResult != null && challengeResult.isChallengeSent()) {
+                facade.getSessionStore().saveRequest();
+                return PicketLinkElytronAuthOutcome.AUTHENTICATION_IN_PROGRESS;
+            }
+            if (facade.isResponseCommitted()) {
+                facade.getSessionStore().saveRequest();
+                return PicketLinkElytronAuthOutcome.AUTHENTICATION_IN_PROGRESS;
+            }
+            return mapElytronOutcome(facade, authenticate(exchange, securityContext));
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private PicketLinkElytronAuthOutcome mapElytronOutcome(
+            PicketLinkElytronHttpFacade facade, AuthenticationMechanismOutcome outcome) {
+        if (outcome == AuthenticationMechanismOutcome.AUTHENTICATED) {
+            return PicketLinkElytronAuthOutcome.AUTHENTICATED;
+        }
+        if (facade.isResponseCommitted()) {
+            return PicketLinkElytronAuthOutcome.AUTHENTICATION_IN_PROGRESS;
+        }
+        return PicketLinkElytronAuthOutcome.NOT_AUTHENTICATED;
+    }
+
+    protected Account register(final HttpServerExchange httpServerExchange, final SecurityContext securityContext, Account account) {
+        if (logger.isTraceEnabled()) {
+            logger.trace("register() securityContext=" + securityContext.getClass().getName()
+                    + " authenticated=" + securityContext.isAuthenticated());
+        }
+
+        PicketLinkElytronHttpFacade elytronFacade = PicketLinkElytronCompletionContext.get();
+        if (elytronFacade != null && elytronFacade.isDirectPath() && account != null) {
+            HttpSession session = facadeServletSession(httpServerExchange);
+            if (session != null) {
+                session.setAttribute(PicketLinkElytronSpMechanismRegistry.FORM_ACCOUNT_NOTE, account);
+            }
+            return account;
+        }
+
+        ElytronIdentityEstablishment establishment = resolveElytronIdentityEstablishment();
+        if (establishment != null && httpServerExchange != null && account != null) {
+            JaasElytronAuthenticationBridgeContext context = JaasElytronAuthenticationBridgeContext.builder()
+                    .httpServerExchange(httpServerExchange)
+                    .securityContext(securityContext)
+                    .servletContext(servletContext)
+                    .securityDomainName(resolveSecurityDomainName())
+                    .username(account.getPrincipal().getName())
+                    .roles(account.getRoles())
+                    .samlPrincipal(account.getPrincipal())
+                    .undertowAccount(account)
+                    .jaasPassword(EMPTY_PASSWORD)
+                    .build();
+
+            ElytronIdentityEstablishmentResult result = establishment.establish(context);
+            if (result.isSuccess() && result.getAccount() != null && hasRoles(result.getAccount())) {
+                return result.getAccount();
+            }
+        }
+
+        if (ElytronSecurityContextSupport.isElytronSecurityContext(securityContext) && account != null) {
+            if (ElytronSecurityContextSupport.completeAuthentication(securityContext, account, DirectElytronIdentityEstablishment.MECHANISM_NAME)) {
+                ElytronSessionIdentitySupport.storeFromAccount(httpServerExchange, securityContext,
+                        securityContext.getAuthenticatedAccount(), DirectElytronIdentityEstablishment.MECHANISM_NAME);
+                Account established = securityContext.getAuthenticatedAccount();
+                if (established != null && hasRoles(established)) {
+                    return established;
+                }
+            }
+        }
+
+        if (ElytronSecurityContextSupport.isElytronSecurityContext(securityContext)) {
+            ElytronIdentityEstablishmentResult fallback = PicketLinkElytronIdentityCompletion.complete(
+                    JaasElytronAuthenticationBridgeContext.builder()
+                            .httpServerExchange(httpServerExchange)
+                            .securityContext(securityContext)
+                            .servletContext(servletContext)
+                            .username(account.getPrincipal().getName())
+                            .roles(account.getRoles())
+                            .samlPrincipal(account.getPrincipal())
+                            .undertowAccount(account)
+                            .build());
+            if (fallback.isSuccess() && fallback.getAccount() != null && hasRoles(fallback.getAccount())) {
+                return fallback.getAccount();
+            }
+        } else {
+            securityContext.authenticationComplete(account, "FORM", false);
+        }
+        return account;
+    }
+
+    protected Account verifyAccount(SecurityContext securityContext, Account account) {
+        if (ElytronSecurityContextSupport.isElytronSecurityContext(securityContext)) {
+            return account;
+        }
+        return securityContext.getIdentityManager().verify(account);
+    }
+
+    protected ElytronIdentityEstablishment resolveElytronIdentityEstablishment() {
+        if (elytronIdentityEstablishment == null) {
+            elytronIdentityEstablishment = ElytronIdentityEstablishmentProvider.resolve(
+                    servletContext, jaasElytronBridgeClassName);
+        }
+        return elytronIdentityEstablishment;
+    }
+
+    protected String resolveSecurityDomainName() {
+        if (servletContext == null) {
+            return null;
+        }
+        Object domain = servletContext.getAttribute("org.jboss.as.web.deployment.security-domain");
+        return domain != null ? domain.toString() : null;
     }
 
     /**
@@ -563,16 +741,14 @@ public class SPFormAuthenticationMechanism extends ServletFormAuthenticationMech
                 ServiceProviderSAMLContext.push(username, roles);
 
                 //TODO: figure out getting the principal via authentication
-                IdentityManager identityManager = securityContext.getIdentityManager();
-
                 final Principal userPrincipal = principal;
 
                 Account account = createAccount(userPrincipal, new HashSet<String>(roles));
 
-                account = identityManager.verify(account);
+                account = verifyAccount(securityContext, account);
 
                 //Register the principal with the request
-                register(securityContext, account);
+                account = register(httpServerExchange, securityContext, account);
 
                 PicketLinkAuditEvent auditEvent = new PicketLinkAuditEvent(AuditLevel.INFO);
 
@@ -586,6 +762,14 @@ public class SPFormAuthenticationMechanism extends ServletFormAuthenticationMech
                 if (saveRestoreRequest) {
                     // Store the authenticated principal in the session.
                     session.setAttribute(FORM_ACCOUNT_NOTE, account);
+
+                    if (PicketLinkElytronCompletionContext.get() != null) {
+                        if (session.getAttribute(INITIAL_LOCATION_STORED) != null) {
+                            handleRedirectBack(httpServerExchange);
+                            httpServerExchange.endExchange();
+                        }
+                        return AuthenticationMechanismOutcome.AUTHENTICATED;
+                    }
 
                     if (session.getAttribute(INITIAL_LOCATION_STORED) != null) {
                         // Redirect to the original URL.  Note that this will trigger the
@@ -634,6 +818,17 @@ public class SPFormAuthenticationMechanism extends ServletFormAuthenticationMech
      */
     protected boolean isHttpPostBinding() {
         return spConfiguration.getBindingType().equalsIgnoreCase("POST");
+    }
+
+    /**
+     * WildFly/Undertow form authentication expects SAML responses at {@code j_security_check}.
+     */
+    protected String resolveAssertionConsumerServiceUrl() {
+        if (serviceURL == null || serviceURL.contains("j_security_check")) {
+            return serviceURL;
+        }
+        String base = serviceURL.endsWith("/") ? serviceURL.substring(0, serviceURL.length() - 1) : serviceURL;
+        return base + "/j_security_check";
     }
 
     protected boolean sessionIsValid(HttpSession session){
@@ -956,6 +1151,7 @@ public class SPFormAuthenticationMechanism extends ServletFormAuthenticationMech
     protected void populateChainConfig() throws ConfigurationException, ProcessingException {
         chainConfigOptions.put(GeneralConstants.CONFIGURATION, spConfiguration);
         chainConfigOptions.put(GeneralConstants.ROLE_VALIDATOR_IGNORE, "false"); // No validator as tomcat realm does validn
+        chainConfigOptions.put(SAML2Handler.ASSERTION_CONSUMER_URL, resolveAssertionConsumerServiceUrl());
 
         if (doSupportSignature()) {
             chainConfigOptions.put(GeneralConstants.KEYPAIR, keyManager.getSigningKeyPair());
@@ -1065,16 +1261,14 @@ public class SPFormAuthenticationMechanism extends ServletFormAuthenticationMech
                 ServiceProviderSAMLContext.push(username, roles);
 
                 //TODO: figure out getting the principal via authentication
-                IdentityManager identityManager = securityContext.getIdentityManager();
-
                 final Principal userPrincipal = principal;
 
                 Account account = createAccount(userPrincipal, new HashSet<String>(roles));
 
-                account = identityManager.verify(account);
+                account = verifyAccount(securityContext, account);
 
                 //Register the principal with the request
-                register(securityContext, account);
+                register(null, securityContext, account);
 
                 PicketLinkAuditEvent auditEvent = new PicketLinkAuditEvent(AuditLevel.INFO);
 
@@ -1116,6 +1310,21 @@ public class SPFormAuthenticationMechanism extends ServletFormAuthenticationMech
                 return roles;
             }
         };
+    }
+
+    private static boolean hasRoles(Account account) {
+        return account != null && account.getRoles() != null && !account.getRoles().isEmpty();
+    }
+
+    private static HttpSession facadeServletSession(HttpServerExchange exchange) {
+        if (exchange == null) {
+            return null;
+        }
+        ServletRequestContext servletRequestContext = exchange.getAttachment(ServletRequestContext.ATTACHMENT_KEY);
+        if (servletRequestContext == null) {
+            return null;
+        }
+        return ((HttpServletRequest) servletRequestContext.getServletRequest()).getSession(false);
     }
 
     /**

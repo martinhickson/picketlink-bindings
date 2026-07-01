@@ -10,7 +10,7 @@
             <property name="jbossHome">${jboss.home}</property>
             <property name="allowConnectingToRunningServer">false</property>
             <property name="managementPort">10090</property>
-            <property name="javaVmArguments">-Xms512m -Xmx1024m -Djboss.bind.address=127.0.0.1 -Djboss.bind.address.management=127.0.0.1 -Djboss.socket.binding.port-offset=100</property>
+            <property name="javaVmArguments">-Xms512m -Xmx1024m -Djboss.bind.address=127.0.0.1 -Djboss.bind.address.management=127.0.0.1 -Djboss.socket.binding.port-offset=100 -Djava.security.auth.login.config=${jboss.home}/standalone/configuration/picketlink-sp.login.conf -javaagent:${jboss.home}/modules/org/picketlink/elytron-trace/main/elytron-trace-agent.jar -Djboss.modules.system.pkgs=org.picketlink.test.wildfly36.bytebuddy -Dpicketlink.elytron.trace.file=${project.build.directory}/elytron-trace.log</property>
         </configuration>
     </container>
 </arquillian>

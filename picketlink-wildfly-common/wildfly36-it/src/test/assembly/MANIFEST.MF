@@ -1,0 +1,4 @@
+Manifest-Version: 1.0
+Premain-Class: org.picketlink.test.wildfly36.bytebuddy.ElytronTraceAgent
+Can-Redefine-Classes: true
+Can-Retransform-Classes: true

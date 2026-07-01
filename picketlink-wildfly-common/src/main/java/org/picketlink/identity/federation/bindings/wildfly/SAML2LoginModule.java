@@ -25,7 +25,9 @@ import org.apache.cxf.common.security.GroupPrincipal;
 import org.apache.cxf.common.security.SimpleGroup;
 import org.apache.cxf.common.security.SimplePrincipal;
 import org.jboss.security.auth.spi.UsernamePasswordLoginModule;
+import org.picketlink.common.util.StringUtil;
 
+import java.security.Principal;
 import javax.security.auth.Subject;
 import javax.security.auth.callback.CallbackHandler;
 import javax.security.auth.login.LoginException;
@@ -60,9 +62,14 @@ public class SAML2LoginModule extends UsernamePasswordLoginModule {
     public void initialize(Subject subject, CallbackHandler callbackHandler, Map<String, ?> sharedState, Map<String, ?> options) {
         super.initialize(subject, callbackHandler, sharedState, options);
         String groupNameStr = (String) options.get("groupPrincipalName");
-        if (groupNameStr != null && !"".equals(groupNameStr.trim())) {
+        if (StringUtil.isNotNull(groupNameStr)) {
             groupName = groupNameStr.trim();
         }
+    }
+
+    @Override
+    protected Principal getIdentity() {
+        return new SimplePrincipal(ServiceProviderSAMLContext.getUserName());
     }
 
     @Override
@@ -80,6 +87,6 @@ public class SAML2LoginModule extends UsernamePasswordLoginModule {
 
     @Override
     protected String getUsersPassword() throws LoginException {
-        return "EMPTY_STR";
+        return ServiceProviderSAMLContext.EMPTY_PASSWORD;
     }
 }

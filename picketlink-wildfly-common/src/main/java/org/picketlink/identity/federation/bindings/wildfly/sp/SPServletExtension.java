@@ -26,6 +26,8 @@ import io.undertow.security.api.AuthenticationMechanismFactory;
 import io.undertow.server.handlers.form.FormParserFactory;
 import io.undertow.servlet.ServletExtension;
 import io.undertow.servlet.api.DeploymentInfo;
+import io.undertow.servlet.api.ListenerInfo;
+import io.undertow.servlet.api.LoginConfig;
 
 import jakarta.servlet.ServletContext;
 import jakarta.servlet.http.HttpServletRequest;
@@ -39,6 +41,7 @@ import org.picketlink.config.federation.PicketLinkType;
 import org.picketlink.config.federation.ProviderType;
 import org.picketlink.config.federation.SPType;
 import org.picketlink.identity.federation.core.audit.PicketLinkAuditHelper;
+import org.picketlink.identity.federation.bindings.wildfly.elytron.PicketLinkElytronSpMechanismRegistry;
 import org.picketlink.identity.federation.web.util.ConfigurationUtil;
 import org.picketlink.identity.federation.web.util.SAMLConfigurationProvider;
 
@@ -69,6 +72,7 @@ public class SPServletExtension implements ServletExtension {
     @Override
     public void handleDeployment(final DeploymentInfo deploymentInfo, final ServletContext servletContext) {
         LOGGER.debug("Processing PicketLink Extension [" + getClass() + "].");
+        deploymentInfo.addListener(new ListenerInfo(PicketLinkSamlServletContextListener.class));
 
         try {
             final PicketLinkType configuration;
@@ -95,19 +99,33 @@ public class SPServletExtension implements ServletExtension {
             if (SPType.class.isInstance(providerType)) {
                 LOGGER.debug("Configuring deployment [" + deploymentInfo.getDeploymentName() + "] as a SAML Service Provider.");
 
+                LoginConfig loginConfig = deploymentInfo.getLoginConfig();
+                if (loginConfig != null) {
+                    deploymentInfo.addServletContextAttribute(
+                            PicketLinkElytronSpMechanismRegistry.LOGIN_PAGE_ATTRIBUTE, loginConfig.getLoginPage());
+                    deploymentInfo.addServletContextAttribute(
+                            PicketLinkElytronSpMechanismRegistry.ERROR_PAGE_ATTRIBUTE, loginConfig.getErrorPage());
+                }
+
                 deploymentInfo.addAuthenticationMechanism(HttpServletRequest.FORM_AUTH, new AuthenticationMechanismFactory() {
                     @Override
                     public AuthenticationMechanism create(String mechanismName, FormParserFactory formParserFactory, Map<String, String> properties) {
                         try {
+                            SPFormAuthenticationMechanism mechanism = lookupRegisteredMechanism(servletContext);
+                            if (mechanism != null) {
+                                return mechanism;
+                            }
                             String loginPage = properties.get(LOGIN_PAGE);
                             String errorPage = properties.get(ERROR_PAGE);
                             PicketLinkAuditHelper auditHelper = getAuditHelper(configuration, servletContext);
 
                             if (configurationProvider != null) {
-                                return new SPFormAuthenticationMechanism(formParserFactory, mechanismName, loginPage, errorPage, servletContext, configurationProvider, auditHelper);
+                                mechanism = new SPFormAuthenticationMechanism(formParserFactory, mechanismName, loginPage, errorPage, servletContext, configurationProvider, auditHelper);
+                            } else {
+                                mechanism = new SPFormAuthenticationMechanism(formParserFactory, mechanismName, loginPage, errorPage, servletContext, configuration, auditHelper);
                             }
-
-                            return new SPFormAuthenticationMechanism(formParserFactory, mechanismName, loginPage, errorPage, servletContext, configuration, auditHelper);
+                            PicketLinkElytronSpMechanismRegistry.register(servletContext, mechanism);
+                            return mechanism;
                         } catch (ProcessingException e) {
                             throw new RuntimeException("Could not create SAML Authentication Mechanism for deployment [" + deploymentInfo.getDeploymentName() + "].", e);
                         }
@@ -126,6 +144,11 @@ public class SPServletExtension implements ServletExtension {
         } catch (ConfigurationException e) {
             throw new RuntimeException("Could not load PicketLink configuration for deployment [" + deploymentInfo.getDeploymentName()  + "].", e);
         }
+    }
+
+    private static SPFormAuthenticationMechanism lookupRegisteredMechanism(ServletContext servletContext) {
+        Object mechanism = PicketLinkElytronSpMechanismRegistry.lookupMechanism(servletContext);
+        return mechanism instanceof SPFormAuthenticationMechanism ? (SPFormAuthenticationMechanism) mechanism : null;
     }
 
     private SAMLConfigurationProvider getConfigurationProvider(ServletContext servletContext) {

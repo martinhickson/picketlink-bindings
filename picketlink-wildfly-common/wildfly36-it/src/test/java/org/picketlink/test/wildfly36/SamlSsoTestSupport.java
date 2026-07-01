@@ -22,7 +22,6 @@ public final class SamlSsoTestSupport {
         WebRequest serviceRequest = new GetMethodWebRequest(spUri);
         WebConversation conversation = new WebConversation();
         HttpUnitOptions.setLoggingHttpHeaders(true);
-        HttpUnitOptions.setExceptionsThrownOnErrorStatus(false);
 
         WebResponse response = conversation.getResponse(serviceRequest);
         int responseCode = response.getResponseCode();
@@ -34,11 +33,7 @@ public final class SamlSsoTestSupport {
         loginForm.setParameter("j_username", "user1");
         loginForm.setParameter("j_password", "password1");
         SubmitButton submitButton = loginForm.getSubmitButtons()[0];
-        try {
-            submitButton.click();
-        } catch (Exception ignored) {
-            // Elytron may return 403 on the secured resource after SAML; principal is verified below
-        }
+        submitButton.click();
 
         response = conversation.getCurrentPage();
         responseCode = response.getResponseCode();
@@ -47,10 +42,7 @@ public final class SamlSsoTestSupport {
             responseCode = response.getResponseCode();
         }
 
-        // Elytron may deny role-constrained resources after SAML; verify principal on an open endpoint
-        WebRequest usernameRequest = new GetMethodWebRequest(
-                "http://localhost:" + port + "/" + serviceProviderContext + "/username");
-        response = conversation.getResponse(usernameRequest);
-        assertTrue("Expected authenticated username in response", response.getText().contains("user1"));
+        assertTrue("Expected authenticated username on secured resource",
+                response.getText().contains("user1"));
     }
 }

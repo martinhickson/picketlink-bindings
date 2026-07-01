@@ -17,7 +17,7 @@
     </security-constraint>
 
     <login-config>
-        <auth-method>FORM</auth-method>
+        <auth-method>PICKETLINK-SAML</auth-method>
         <form-login-config>
             <form-login-page>/FormLoginServlet</form-login-page>
             <form-error-page>/error.html</form-error-page>
@@ -44,9 +44,5 @@
     <servlet-mapping>
         <servlet-name>usernameServlet</servlet-name>
         <url-pattern>/secured/*</url-pattern>
-    </servlet-mapping>
-    <servlet-mapping>
-        <servlet-name>usernameServlet</servlet-name>
-        <url-pattern>/username</url-pattern>
     </servlet-mapping>
 </web-app>

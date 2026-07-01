@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<module xmlns="urn:jboss:module:1.9" name="net.bytebuddy">
+    <resources>
+        <resource-root path="byte-buddy.jar"/>
+        <resource-root path="byte-buddy-agent.jar"/>
+    </resources>
+    <dependencies>
+        <module name="java.base"/>
+        <module name="java.instrument"/>
+        <module name="jdk.unsupported"/>
+    </dependencies>
+</module>

@@ -1,7 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <jboss-deployment-structure xmlns="urn:jboss:deployment-structure:1.2">
     <deployment>
-        <!-- SAML browser-profile tests do not use JAX-WS; bundled CXF jars conflict with JBossWS -->
+        <dependencies>
+            <module name="org.picketlink" services="export"/>
+        </dependencies>
+        <!-- SAML browser-profile tests do not use JAX-WS -->
         <exclude-subsystems>
             <subsystem name="webservices"/>
         </exclude-subsystems>

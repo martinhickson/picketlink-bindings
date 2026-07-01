@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<module xmlns="urn:jboss:module:1.9" name="org.picketlink.elytron-trace">
+    <resources>
+        <resource-root path="elytron-trace-agent.jar"/>
+    </resources>
+    <dependencies>
+        <module name="net.bytebuddy"/>
+        <module name="java.base"/>
+        <module name="java.instrument"/>
+        <module name="java.logging"/>
+    </dependencies>
+</module>
