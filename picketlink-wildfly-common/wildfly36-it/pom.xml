@@ -308,6 +308,9 @@
           <systemPropertyVariables>
             <jboss.home>${jboss.home}</jboss.home>
             <test.http.port>${test.http.port}</test.http.port>
+            <picketlink.test.keystore.path>${picketlink.test.keystore.path}</picketlink.test.keystore.path>
+            <picketlink.test.reload.config.path>${jboss.home}/standalone/configuration/picketlink-reload-test.xml</picketlink.test.reload.config.path>
+            <picketlink.test.reload.timer.interval.ms>500</picketlink.test.reload.timer.interval.ms>
           </systemPropertyVariables>
         </configuration>
         <executions>

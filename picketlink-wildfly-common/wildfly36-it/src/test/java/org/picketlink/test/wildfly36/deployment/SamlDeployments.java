@@ -55,6 +55,38 @@ public final class SamlDeployments {
         return createMetadataWar("sp-metadata-json-auth-default.war", "sp-metadata-json-auth-default", false);
     }
 
+    public static WebArchive idpSignedWar() {
+        return createWar("idp-sig.war", "idp-sig");
+    }
+
+    public static WebArchive idpLegacySignedWar() {
+        return createWar("idp-sig-legacy.war", "idp-sig-legacy");
+    }
+
+    public static WebArchive spSignedWar() {
+        return createWar("sp-sig.war", "sp-sig");
+    }
+
+    public static WebArchive spLegacyRejectWar() {
+        return createWar("sp-sig-legacy-reject.war", "sp-sig-legacy-reject");
+    }
+
+    public static WebArchive spLegacyAcceptWar() {
+        return createWar("sp-sig-legacy-accept.war", "sp-sig-legacy-accept");
+    }
+
+    public static WebArchive spSignedReloadWar() {
+        return ShrinkWrap.create(WebArchive.class, "sp-sig-reload.war")
+                .addAsWebInfResource(SamlDeployments.class.getResource("/deployments/sp-sig-reload/web.xml"), "web.xml")
+                .addAsWebInfResource(SamlDeployments.class.getResource("/deployments/sp-sig-reload/jboss-web.xml"), "jboss-web.xml")
+                .addAsWebInfResource(SamlDeployments.class.getResource("/deployments/error.html"), "error.html")
+                .addAsWebResource(SamlDeployments.class.getResource("/deployments/logout.html"), "logout.html")
+                .addAsWebInfResource(SamlDeployments.class.getResource("/deployments/jboss-deployment-structure.xml"), "jboss-deployment-structure.xml")
+                .addClass(FormLoginServlet.class)
+                .addClass(SendUsernameServlet.class)
+                .addClass(FileReloadableSAMLConfigurationProvider.class);
+    }
+
     private static WebArchive createMetadataWar(String name, String resourceBase, boolean idp) {
         return createMetadataWar(name, resourceBase, idp, true);
     }

@@ -1,0 +1,41 @@
+<PicketLink xmlns="urn:picketlink:identity-federation:config:2.1">
+    <PicketLinkIDP xmlns="urn:picketlink:identity-federation:config:2.1"
+                   SupportsSignatures="true"
+                   EnableLegacySigning="true"
+                   AttributeManager="org.picketlink.identity.federation.bindings.wildfly.idp.UndertowAttributeManager"
+                   RoleGenerator="org.picketlink.test.wildfly36.deployment.TestRoleGenerator">
+        <IdentityURL>http://localhost:${test.http.port}/idp-sig-legacy/</IdentityURL>
+        <Trust>
+            <Domains>localhost,jboss.com,jboss.org,amazonaws.com</Domains>
+        </Trust>
+        <KeyProvider ClassName="org.picketlink.identity.federation.core.impl.KeyStoreKeyManager">
+            <Auth Key="KeyStoreURL" Value="${picketlink.test.keystore.path}"/>
+            <Auth Key="KeyStorePass" Value="store123"/>
+            <Auth Key="SigningKeyPass" Value="test123"/>
+            <Auth Key="SigningKeyAlias" Value="servercert"/>
+            <ValidatingAlias Key="localhost" Value="servercert"/>
+            <SigningAlias>servercert</SigningAlias>
+        </KeyProvider>
+    </PicketLinkIDP>
+    <Handlers xmlns="urn:picketlink:identity-federation:handler:config:2.1">
+        <Handler class="org.picketlink.identity.federation.web.handlers.saml2.SAML2IssuerTrustHandler"/>
+        <Handler class="org.picketlink.identity.federation.web.handlers.saml2.SAML2LogOutHandler"/>
+        <Handler class="org.picketlink.identity.federation.web.handlers.saml2.SAML2AuthenticationHandler"/>
+        <Handler class="org.picketlink.identity.federation.web.handlers.saml2.SAML2SignatureGenerationHandler">
+            <Option Key="SIGN_ASSERTION_ONLY" Value="true"/>
+        </Handler>
+        <Handler class="org.picketlink.identity.federation.web.handlers.saml2.RolesGenerationHandler"/>
+    </Handlers>
+    <PicketLinkSTS xmlns="urn:picketlink:identity-federation:config:2.1" TokenTimeout="50000" ClockSkew="0">
+        <TokenProviders>
+            <TokenProvider
+                    ProviderClass="org.picketlink.identity.federation.core.saml.v1.providers.SAML11AssertionTokenProvider"
+                    TokenType="urn:oasis:names:tc:SAML:1.0:assertion"
+                    TokenElement="Assertion" TokenElementNS="urn:oasis:names:tc:SAML:1.0:assertion"/>
+            <TokenProvider
+                    ProviderClass="org.picketlink.identity.federation.core.saml.v2.providers.SAML20AssertionTokenProvider"
+                    TokenType="urn:oasis:names:tc:SAML:2.0:assertion"
+                    TokenElement="Assertion" TokenElementNS="urn:oasis:names:tc:SAML:2.0:assertion"/>
+        </TokenProviders>
+    </PicketLinkSTS>
+</PicketLink>

@@ -28,6 +28,16 @@ public final class SamlSsoTestSupport {
     }
 
     /**
+     * Attempts SP-initiated SSO and asserts the user is not authenticated on the secured resource.
+     */
+    public static void assertSpInitiatedSamlSsoFails(String serviceProviderContext) throws Exception {
+        WebConversation conversation = new WebConversation();
+        WebResponse response = attemptSpInitiatedSso(conversation, serviceProviderContext);
+        assertFalse("Expected authentication to fail for " + serviceProviderContext,
+                response.getText().contains("user1"));
+    }
+
+    /**
      * Logs in via SP-initiated SSO, performs global logout ({@code GLO=true}), then verifies
      * the secured resource requires authentication again.
      */
@@ -107,6 +117,13 @@ public final class SamlSsoTestSupport {
 
     private static void loginSpInitiatedSso(WebConversation conversation, String serviceProviderContext)
             throws Exception {
+        WebResponse response = attemptSpInitiatedSso(conversation, serviceProviderContext);
+        assertTrue("Expected authenticated username on secured resource",
+                response.getText().contains("user1"));
+    }
+
+    private static WebResponse attemptSpInitiatedSso(WebConversation conversation, String serviceProviderContext)
+            throws Exception {
         int port = Integer.getInteger("test.http.port", 8180);
         String spUri = "http://localhost:" + port + "/" + serviceProviderContext + "/secured/test";
         WebResponse response = followRedirects(conversation, new GetMethodWebRequest(spUri));
@@ -117,10 +134,7 @@ public final class SamlSsoTestSupport {
         SubmitButton submitButton = loginForm.getSubmitButtons()[0];
         submitButton.click();
 
-        response = followRedirects(conversation, conversation.getCurrentPage());
-
-        assertTrue("Expected authenticated username on secured resource",
-                response.getText().contains("user1"));
+        return followRedirects(conversation, conversation.getCurrentPage());
     }
 
     private static WebResponse followSamlLogoutFlow(WebConversation conversation, WebRequest request)

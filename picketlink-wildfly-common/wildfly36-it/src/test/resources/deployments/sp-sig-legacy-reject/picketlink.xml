@@ -1,0 +1,23 @@
+<PicketLink xmlns="urn:picketlink:identity-federation:config:2.1">
+    <PicketLinkSP xmlns="urn:picketlink:identity-federation:config:2.1"
+                  SupportsSignatures="true"
+                  BindingType="REDIRECT" RelayState="someURL"
+                  LogOutPage="/logout.html">
+        <IdentityURL>http://localhost:${test.http.port}/idp-sig-legacy/</IdentityURL>
+        <ServiceURL>http://localhost:${test.http.port}/sp-sig-legacy-reject/</ServiceURL>
+        <KeyProvider ClassName="org.picketlink.identity.federation.core.impl.KeyStoreKeyManager">
+            <Auth Key="KeyStoreURL" Value="${picketlink.test.keystore.path}"/>
+            <Auth Key="KeyStorePass" Value="store123"/>
+            <Auth Key="SigningKeyPass" Value="test123"/>
+            <Auth Key="SigningKeyAlias" Value="servercert"/>
+            <ValidatingAlias Key="localhost" Value="servercert"/>
+            <SigningAlias>servercert</SigningAlias>
+        </KeyProvider>
+    </PicketLinkSP>
+    <Handlers xmlns="urn:picketlink:identity-federation:handler:config:2.1">
+        <Handler class="org.picketlink.identity.federation.web.handlers.saml2.SAML2LogOutHandler"/>
+        <Handler class="org.picketlink.identity.federation.web.handlers.saml2.SAML2SignatureValidationHandler"/>
+        <Handler class="org.picketlink.identity.federation.web.handlers.saml2.SAML2AuthenticationHandler"/>
+        <Handler class="org.picketlink.identity.federation.web.handlers.saml2.RolesGenerationHandler"/>
+    </Handlers>
+</PicketLink>

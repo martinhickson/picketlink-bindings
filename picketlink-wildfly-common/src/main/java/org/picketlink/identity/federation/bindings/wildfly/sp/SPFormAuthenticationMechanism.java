@@ -209,7 +209,13 @@ public class SPFormAuthenticationMechanism extends ServletFormAuthenticationMech
     }
 
     public SPFormAuthenticationMechanism(FormParserFactory parserFactory, String name, String loginPage, String errorPage, ServletContext servletContext, SAMLConfigurationProvider configProvider, PicketLinkAuditHelper auditHelper) throws ProcessingException {
-        this(parserFactory, name, loginPage, errorPage, servletContext, configProvider.getPicketLinkConfiguration(), auditHelper);
+        super(parserFactory, name, loginPage, errorPage);
+        this.servletContext = servletContext;
+        this.configProvider = configProvider;
+        this.configuration = configProvider.getPicketLinkConfiguration();
+        this.spConfiguration = (SPType) this.configuration.getIdpOrSP();
+        this.auditHelper = auditHelper;
+        startPicketLink();
     }
 
     @Override
@@ -877,6 +883,19 @@ public class SPFormAuthenticationMechanism extends ServletFormAuthenticationMech
         SystemPropertiesUtil.ensure();
         Handlers handlers = null;
 
+        if (this.configProvider == null) {
+            try {
+                this.configProvider = ConfigurationUtil.getConfigurationProvider(this.servletContext);
+            } catch (Exception e) {
+                logger.trace("No SAML configuration provider configured.", e);
+            }
+        }
+
+        String refreshInterval = servletContext.getInitParameter(GeneralConstants.REFRESH_CONFIG_TIMER_INTERVAL);
+        if (refreshInterval != null && !refreshInterval.isBlank()) {
+            timerInterval = Integer.parseInt(refreshInterval.trim());
+        }
+
         //Introduce a timer to reload configuration if desired
         if(timerInterval > 0 ){
             if(timer == null){
@@ -885,9 +904,14 @@ public class SPFormAuthenticationMechanism extends ServletFormAuthenticationMech
             timer.scheduleAtFixedRate(new TimerTask() {
                 @Override
                 public void run() {
-                    reloadConfiguration();
-                    processConfiguration();
-                    initKeyProvider(servletContext);
+                    try {
+                        reloadConfiguration();
+                        processConfiguration();
+                        initKeyProvider(servletContext);
+                        initializeHandlerChain();
+                    } catch (Exception e) {
+                        logger.trace("Failed to reload PicketLink configuration.", e);
+                    }
                 }
             }, timerInterval, timerInterval);
         }
