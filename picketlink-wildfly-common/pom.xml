@@ -12,6 +12,7 @@
   <name>PicketLink Common Server Bindings for WildFly</name>
 
   <properties>
+    <version.cxf>4.1.7</version.cxf>
     <jakarta.servlet-api.version>6.0.0</jakarta.servlet-api.version>
     <picketbox.version>5.0.3.jakarta.bravura.1</picketbox.version>
     <jbossxacml.version>2.1.8.jakarta.bravura.11</jbossxacml.version>
@@ -105,7 +106,7 @@
     <dependency>
       <groupId>org.apache.cxf</groupId>
       <artifactId>cxf-core</artifactId>
-      <version>3.3.6</version>
+      <version>${version.cxf}</version>
       <optional>true</optional>
     </dependency>
 
