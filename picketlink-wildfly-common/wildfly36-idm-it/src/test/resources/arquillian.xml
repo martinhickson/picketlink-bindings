@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<arquillian xmlns="http://jboss.org/schema/arquillian"
+            xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+            xsi:schemaLocation="http://jboss.org/schema/arquillian http://jboss.org/schema/arquillian/arquillian_1_0.xsd">
+
+    <defaultProtocol type="Servlet 5.0"/>
+
+    <container qualifier="wildfly-managed" default="true">
+        <configuration>
+            <property name="jbossHome">${jboss.home}</property>
+            <property name="allowConnectingToRunningServer">false</property>
+            <property name="managementPort">10490</property>
+            <property name="javaVmArguments">-Xms512m -Xmx1024m -Djboss.bind.address=127.0.0.1 -Djboss.bind.address.management=127.0.0.1 -Djboss.socket.binding.port-offset=500</property>
+        </configuration>
+    </container>
+</arquillian>
