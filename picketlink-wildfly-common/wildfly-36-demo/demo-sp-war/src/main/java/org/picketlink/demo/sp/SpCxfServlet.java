@@ -2,9 +2,11 @@ package org.picketlink.demo.sp;
 
 import org.apache.cxf.jaxrs.JAXRSServerFactoryBean;
 import org.picketlink.demo.shared.DemoInfoResource;
+import org.picketlink.demo.shared.DemoMeResource;
 import jakarta.servlet.ServletConfig;
 import org.apache.cxf.transport.servlet.CXFNonSpringServlet;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 public class SpCxfServlet extends CXFNonSpringServlet {
@@ -23,7 +25,9 @@ public class SpCxfServlet extends CXFNonSpringServlet {
 
         JAXRSServerFactoryBean factory = new JAXRSServerFactoryBean();
         factory.setBus(getBus());
-        factory.setServiceBean(new DemoInfoResource("SP", baseUrl, links));
+        factory.setServiceBeans(List.of(
+                new DemoInfoResource("SP", baseUrl, links),
+                new DemoMeResource()));
         factory.setAddress("/");
         factory.create();
     }

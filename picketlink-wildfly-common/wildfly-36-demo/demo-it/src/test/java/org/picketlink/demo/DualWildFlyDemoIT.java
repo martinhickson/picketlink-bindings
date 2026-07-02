@@ -85,6 +85,7 @@ public class DualWildFlyDemoIT {
             assertOk(client, DemoEnvironment.spBaseUrl() + "metadata");
             assertOk(client, DemoEnvironment.spBaseUrl() + "api/admin/federation/metadata");
             assertOk(client, DemoEnvironment.spBaseUrl() + "api/info");
+            assertSpRequiresSaml(client, DemoEnvironment.spBaseUrl() + "api/me");
         }
 
         if (DemoEnvironment.KEEP_ALIVE) {
@@ -92,6 +93,17 @@ public class DualWildFlyDemoIT {
             System.out.println("Keep-alive enabled — servers stay up for "
                     + DemoEnvironment.KEEP_ALIVE_MINUTES + " minutes. Press Ctrl+C to stop early.");
             Thread.sleep(DemoEnvironment.KEEP_ALIVE_MINUTES * 60_000L);
+        }
+    }
+
+    private static void assertSpRequiresSaml(CloseableHttpClient client, String url) throws Exception {
+        try (CloseableHttpResponse response = client.execute(new HttpGet(url))) {
+            int code = response.getStatusLine().getStatusCode();
+            String location = response.getFirstHeader("Location") == null
+                    ? "" : response.getFirstHeader("Location").getValue();
+            Assert.assertEquals("Expected SAML redirect from " + url, 302, code);
+            Assert.assertTrue("Expected redirect to IDP, got " + location,
+                    location.contains(DemoEnvironment.IDP_HOST));
         }
     }
 
@@ -117,6 +129,7 @@ public class DualWildFlyDemoIT {
         System.out.println("SP metadata    : " + DemoEnvironment.spBaseUrl() + "metadata");
         System.out.println("SP metadata JSON: " + DemoEnvironment.spBaseUrl() + "api/admin/federation/metadata");
         System.out.println("SP CXF info    : " + DemoEnvironment.spBaseUrl() + "api/info");
+        System.out.println("SP session API : " + DemoEnvironment.spBaseUrl() + "api/me (secured; SPA guard)");
         System.out.println();
         System.out.println("Loopback aliases required:");
         System.out.println("  sudo ip addr add " + DemoEnvironment.IDP_HOST + "/8 dev lo");
