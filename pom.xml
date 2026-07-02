@@ -94,6 +94,13 @@
       </modules>
     </profile>
     <profile>
+      <id>wildfly36-demo</id>
+      <modules>
+        <module>picketlink-wildfly-common</module>
+        <module>picketlink-wildfly-common/wildfly-36-demo</module>
+      </modules>
+    </profile>
+    <profile>
       <id>release</id>
       <activation>
         <property>

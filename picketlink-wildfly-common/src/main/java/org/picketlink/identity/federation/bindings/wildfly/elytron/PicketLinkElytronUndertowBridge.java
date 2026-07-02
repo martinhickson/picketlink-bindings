@@ -100,7 +100,7 @@ public final class PicketLinkElytronUndertowBridge {
         try {
             PicketLinkElytronUndertowBridgeContext.setDeferred(true);
             Thread.currentThread().setContextClassLoader(mechanismLoader != null ? mechanismLoader : previous);
-            if (!hasSamlTraffic(exchange, request)) {
+            if (!hasSamlTraffic(exchange, request) && securityContext.isAuthenticationRequired()) {
                 if (invokeSendChallenge(mechanism, exchange, securityContext, request)) {
                     return true;
                 }
@@ -112,7 +112,9 @@ public final class PicketLinkElytronUndertowBridge {
                 return completeDelegatedAuthentication(request, securityContext, callbackHandler);
             }
             if (AuthenticationMechanism.AuthenticationMechanismOutcome.NOT_AUTHENTICATED.equals(outcome)) {
-                if (!isResponseCommitted(exchange) && invokeSendChallenge(mechanism, exchange, securityContext, request)) {
+                if (!isResponseCommitted(exchange)
+                        && securityContext.isAuthenticationRequired()
+                        && invokeSendChallenge(mechanism, exchange, securityContext, request)) {
                     return true;
                 }
                 request.authenticationInProgress(response -> {});

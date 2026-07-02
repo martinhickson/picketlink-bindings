@@ -87,6 +87,10 @@ public final class PicketLinkElytronSamlAuthenticator {
             return mapMechanismOutcome(facade, outcome);
         }
 
+        if (!isAuthenticationRequired(securityContext)) {
+            return PicketLinkElytronAuthOutcome.NOT_AUTHENTICATED;
+        }
+
         Object challengeResult = invokeSendChallenge(spMechanism, exchange, securityContext);
         if (isChallengeSent(challengeResult)) {
             facade.getSessionStore().saveRequest();
@@ -227,6 +231,10 @@ public final class PicketLinkElytronSamlAuthenticator {
 
     private static boolean isNotNull(String value) {
         return value != null && !value.isBlank();
+    }
+
+    private static boolean isAuthenticationRequired(SecurityContext securityContext) {
+        return securityContext != null && securityContext.isAuthenticationRequired();
     }
 
     private static String resolveSamlParameter(

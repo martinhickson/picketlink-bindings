@@ -494,6 +494,10 @@ public class SPFormAuthenticationMechanism extends ServletFormAuthenticationMech
                 return PicketLinkElytronAuthOutcome.AUTHENTICATED;
             }
 
+            if (securityContext == null || !securityContext.isAuthenticationRequired()) {
+                return PicketLinkElytronAuthOutcome.NOT_AUTHENTICATED;
+            }
+
             ChallengeResult challengeResult = sendChallenge(exchange, securityContext);
             if (challengeResult != null && challengeResult.isChallengeSent()) {
                 facade.getSessionStore().saveRequest();

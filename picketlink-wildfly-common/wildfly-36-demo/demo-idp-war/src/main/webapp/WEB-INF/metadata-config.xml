@@ -1,0 +1,21 @@
+<PicketLinkIDP xmlns="urn:picketlink:identity-federation:config:2.1"
+               AttributeManager="org.picketlink.identity.federation.bindings.wildfly.idp.UndertowAttributeManager"
+               RoleGenerator="org.picketlink.demo.shared.DemoRoleGenerator">
+    <IdentityURL>@demo.idp.base.url@</IdentityURL>
+    <Trust>
+        <Domains>@demo.idp.host@,@demo.sp.host@,localhost</Domains>
+    </Trust>
+    <KeyProvider ClassName="org.picketlink.identity.federation.core.impl.KeyStoreKeyManager">
+        <Auth Key="KeyStoreURL" Value="jbid_test_keystore.jks"/>
+        <Auth Key="KeyStorePass" Value="store123"/>
+        <Auth Key="SigningKeyPass" Value="test123"/>
+        <Auth Key="SigningKeyAlias" Value="servercert"/>
+        <ValidatingAlias Key="@demo.idp.host@" Value="servercert"/>
+        <ValidatingAlias Key="@demo.sp.host@" Value="servercert"/>
+        <SigningAlias>servercert</SigningAlias>
+    </KeyProvider>
+    <MetaDataProvider ClassName="org.picketlink.identity.federation.core.saml.md.providers.FileBasedEntityMetadataProvider">
+        <Option Key="FileName" Value="/WEB-INF/idp-entity-metadata.xml"/>
+    </MetaDataProvider>
+    <MetadataPublishing XmlEnabled="true" AdminJsonEnabled="true" AdminJsonRequireAuth="false"/>
+</PicketLinkIDP>

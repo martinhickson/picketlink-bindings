@@ -1,0 +1,122 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>org.picketlink</groupId>
+    <artifactId>picketlink-wildfly36-demo</artifactId>
+    <version>2.5.5.jdk17.1</version>
+  </parent>
+
+  <artifactId>picketlink-demo-idp-war</artifactId>
+  <packaging>war</packaging>
+  <name>PicketLink Demo IDP WAR</name>
+
+  <properties>
+    <demo.idp.context>/demo-idp</demo.idp.context>
+    <demo.idp.base.url>http://${demo.idp.host}:${demo.http.port}${demo.idp.context}/</demo.idp.base.url>
+    <demo.sp.base.url>http://${demo.sp.host}:${demo.http.port}/demo-sp/</demo.sp.base.url>
+  </properties>
+
+  <dependencies>
+    <dependency>
+      <groupId>org.picketlink</groupId>
+      <artifactId>picketlink-demo-shared</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.cxf</groupId>
+      <artifactId>cxf-rt-frontend-jaxrs</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.cxf</groupId>
+      <artifactId>cxf-rt-transports-http</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>jakarta.ws.rs</groupId>
+      <artifactId>jakarta.ws.rs-api</artifactId>
+      <version>3.1.0</version>
+      <scope>provided</scope>
+    </dependency>
+    <dependency>
+      <groupId>jakarta.servlet</groupId>
+      <artifactId>jakarta.servlet-api</artifactId>
+      <version>6.0.0</version>
+      <scope>provided</scope>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <finalName>demo-idp</finalName>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-war-plugin</artifactId>
+        <version>3.4.0</version>
+        <configuration>
+          <filteringDeploymentDescriptors>true</filteringDeploymentDescriptors>
+          <webResources>
+            <resource>
+              <directory>src/main/webapp</directory>
+              <filtering>true</filtering>
+              <includes>
+                <include>WEB-INF/picketlink.xml</include>
+                <include>WEB-INF/web.xml</include>
+                <include>WEB-INF/metadata-config.xml</include>
+                <include>WEB-INF/idp-entity-metadata.xml</include>
+              </includes>
+            </resource>
+            <resource>
+              <directory>${project.basedir}/../idp-ui/dist/idp-ui/browser</directory>
+              <targetPath>app</targetPath>
+              <includes>
+                <include>**/*</include>
+              </includes>
+            </resource>
+          </webResources>
+        </configuration>
+      </plugin>
+      <plugin>
+        <groupId>com.github.eirslett</groupId>
+        <artifactId>frontend-maven-plugin</artifactId>
+        <version>${frontend-maven-plugin.version}</version>
+        <configuration>
+          <workingDirectory>${project.basedir}/../idp-ui</workingDirectory>
+          <installDirectory>${project.build.directory}/node</installDirectory>
+        </configuration>
+        <executions>
+          <execution>
+            <id>install-node-and-npm</id>
+            <goals>
+              <goal>install-node-and-npm</goal>
+            </goals>
+            <configuration>
+              <nodeVersion>${node.version}</nodeVersion>
+              <npmVersion>${npm.version}</npmVersion>
+            </configuration>
+          </execution>
+          <execution>
+            <id>npm-install</id>
+            <goals>
+              <goal>npm</goal>
+            </goals>
+            <configuration>
+              <arguments>install --no-fund --no-audit</arguments>
+            </configuration>
+          </execution>
+          <execution>
+            <id>npm-build</id>
+            <goals>
+              <goal>npm</goal>
+            </goals>
+            <configuration>
+              <arguments>run build -- --base-href ${demo.idp.context}/app/</arguments>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+    </plugins>
+  </build>
+</project>

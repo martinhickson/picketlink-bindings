@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<web-app xmlns="https://jakarta.ee/xml/ns/jakartaee"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="https://jakarta.ee/xml/ns/jakartaee https://jakarta.ee/xml/ns/jakartaee/web-app_6_0.xsd"
+         version="6.0">
+
+    <display-name>PicketLink Demo SP</display-name>
+
+    <context-param>
+        <param-name>demo.base.url</param-name>
+        <param-value>@demo.sp.base.url@</param-value>
+    </context-param>
+    <context-param>
+        <param-name>demo.idp.base.url</param-name>
+        <param-value>@demo.idp.base.url@</param-value>
+    </context-param>
+
+    <security-constraint>
+        <web-resource-collection>
+            <web-resource-name>Secured API and app routes</web-resource-name>
+            <url-pattern>/app/secured/*</url-pattern>
+        </web-resource-collection>
+        <auth-constraint>
+            <role-name>role1</role-name>
+        </auth-constraint>
+    </security-constraint>
+
+    <login-config>
+        <auth-method>PICKETLINK-SAML</auth-method>
+        <form-login-config>
+            <form-login-page>/FormLoginServlet</form-login-page>
+            <form-error-page>/app/index.html</form-error-page>
+        </form-login-config>
+    </login-config>
+
+    <security-role>
+        <role-name>role1</role-name>
+    </security-role>
+
+    <servlet>
+        <servlet-name>loginPage</servlet-name>
+        <servlet-class>org.picketlink.demo.shared.FormLoginServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>loginPage</servlet-name>
+        <url-pattern>/FormLoginServlet</url-pattern>
+    </servlet-mapping>
+
+    <servlet>
+        <servlet-name>MetadataServletSP</servlet-name>
+        <servlet-class>org.picketlink.identity.federation.web.servlets.saml.MetadataServletSP</servlet-class>
+        <init-param>
+            <param-name>configFile</param-name>
+            <param-value>/WEB-INF/picketlink.xml</param-value>
+        </init-param>
+        <load-on-startup>2</load-on-startup>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>MetadataServletSP</servlet-name>
+        <url-pattern>/metadata</url-pattern>
+    </servlet-mapping>
+
+    <servlet>
+        <servlet-name>spCxf</servlet-name>
+        <servlet-class>org.picketlink.demo.sp.SpCxfServlet</servlet-class>
+        <load-on-startup>1</load-on-startup>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>spCxf</servlet-name>
+        <url-pattern>/api/*</url-pattern>
+    </servlet-mapping>
+
+    <servlet>
+        <servlet-name>spaFallback</servlet-name>
+        <servlet-class>org.picketlink.demo.shared.SpaFallbackServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>spaFallback</servlet-name>
+        <url-pattern>/app/*</url-pattern>
+    </servlet-mapping>
+
+    <welcome-file-list>
+        <welcome-file>app/index.html</welcome-file>
+    </welcome-file-list>
+</web-app>
