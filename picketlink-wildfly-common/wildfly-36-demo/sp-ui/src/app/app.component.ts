@@ -11,6 +11,8 @@ import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
       <a routerLink="/" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }">Home</a>
       <a routerLink="/secured" routerLinkActive="active">Secured App</a>
       <a routerLink="/admin" routerLinkActive="active">Admin / Metadata</a>
+      <span class="nav-spacer"></span>
+      <a class="btn btn-nav" href="../app/secured/logout?LLO=true">Logout</a>
     </nav>
     <main><router-outlet /></main>
   `

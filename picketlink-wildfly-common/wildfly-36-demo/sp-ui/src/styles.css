@@ -7,4 +7,7 @@ main { max-width: 960px; margin: 2rem auto; padding: 0 1rem; }
 .card { background: white; border-radius: 12px; padding: 1.25rem; box-shadow: 0 1px 3px rgba(0,0,0,.08); margin-bottom: 1rem; }
 .grid { display: grid; gap: .75rem; }
 button, .btn { display: inline-block; background: #2563eb; color: white; border: 0; padding: .6rem 1rem; border-radius: 8px; cursor: pointer; text-decoration: none; }
+.btn-secondary { background: #4b5563; }
+nav .nav-spacer { flex: 1; }
+nav .btn-nav { margin-left: auto; padding: .45rem .85rem; font-size: .9rem; }
 pre { background: #111827; color: #e5e7eb; padding: 1rem; border-radius: 8px; overflow: auto; }

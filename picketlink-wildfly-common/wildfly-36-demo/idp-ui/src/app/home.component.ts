@@ -9,7 +9,8 @@ import { ApiService } from './api.service';
     <div class="card">
       <h1>Identity Provider</h1>
       <p>Login for SAML assertions: <code>user1</code> / <code>password1</code></p>
-      <p><a class="btn" href="../FormLoginServlet">IDP Form Login</a></p>
+      <p><a class="btn" href="../FormLoginServlet">IDP Form Login</a>
+         <a class="btn btn-secondary" href="../LogoutServlet">Logout</a></p>
       <h3>CXF REST: /api/info</h3>
       <pre>{{ info$ | async | json }}</pre>
     </div>

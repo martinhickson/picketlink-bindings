@@ -12,6 +12,7 @@ import { ApiService } from './api.service';
         <a class="btn" href="../metadata" target="_blank">SAML Metadata (XML)</a>
         <a class="btn" href="../api/admin/federation/metadata" target="_blank">Metadata Summary (JSON)</a>
         <a class="btn" href="../api/info" target="_blank">CXF Demo Info (JSON)</a>
+        <a class="btn btn-secondary" href="../app/secured/logout?GLO=true">Logout (SAML)</a>
       </div>
       <h3>Metadata JSON (via Angular HttpClient)</h3>
       <pre>{{ metadata$ | async | json }}</pre>

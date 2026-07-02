@@ -278,6 +278,12 @@ public class SPFormAuthenticationMechanism extends ServletFormAuthenticationMech
         if (serviceProviderSAMLWorkflow.isGlobalLogout(request)) {
             ElytronSessionIdentitySupport.clear(session);
             session.removeAttribute(PicketLinkSamlSession.SESSION_KEY);
+            session.removeAttribute(FORM_ACCOUNT_NOTE);
+            ChallengeResult challengeResult = sendChallenge(exchange, securityContext);
+            if (response.isCommitted()
+                    || (challengeResult != null && challengeResult.isChallengeSent())) {
+                return AuthenticationMechanismOutcome.NOT_AUTHENTICATED;
+            }
             return AuthenticationMechanismOutcome.NOT_AUTHENTICATED;
         }
 

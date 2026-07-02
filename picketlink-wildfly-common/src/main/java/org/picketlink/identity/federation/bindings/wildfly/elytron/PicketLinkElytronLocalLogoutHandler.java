@@ -38,7 +38,7 @@ import org.picketlink.identity.federation.core.saml.workflow.ServiceProviderSAML
  * skip {@link org.picketlink.identity.federation.bindings.wildfly.sp.SPFormAuthenticationMechanism}.
  * <ul>
  *   <li>{@code LLO=true} — local logout page and session invalidation</li>
- *   <li>{@code GLO=true} — clear Elytron cache only (SAML session attributes remain for LogoutRequest)</li>
+ *   <li>{@code GLO=true} — clear Elytron replay state, then run SAML global logout via {@code sendChallenge}</li>
  * </ul>
  */
 public final class PicketLinkElytronLocalLogoutHandler implements HttpHandler {
@@ -69,6 +69,10 @@ public final class PicketLinkElytronLocalLogoutHandler implements HttpHandler {
 
         if (workflow.isGlobalLogout(request)) {
             clearElytronCachedIdentity(request.getSession(false));
+            HttpSession session = request.getSession(false);
+            if (session != null) {
+                session.removeAttribute(PicketLinkElytronSpMechanismRegistry.FORM_ACCOUNT_NOTE);
+            }
             next.handleRequest(exchange);
             return;
         }

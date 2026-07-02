@@ -1,7 +1,7 @@
 <PicketLink xmlns="urn:picketlink:identity-federation:config:2.1">
     <PicketLinkSP xmlns="urn:picketlink:identity-federation:config:2.1"
                   BindingType="REDIRECT"
-                  LogOutPage="/app/admin">
+                  LogOutPage="/logout.html">
         <IdentityURL>@demo.idp.base.url@</IdentityURL>
         <ServiceURL>@demo.sp.base.url@</ServiceURL>
         <IDPMetadataFile>/WEB-INF/idp-metadata.xml</IDPMetadataFile>

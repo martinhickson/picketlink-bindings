@@ -82,7 +82,29 @@ public final class PicketLinkElytronSamlAuthenticator {
         String samlResponse = resolveSamlParameter(facade, request, GeneralConstants.SAML_RESPONSE_KEY);
         String samlRequest = resolveSamlParameter(facade, request, GeneralConstants.SAML_REQUEST_KEY);
 
-        if (isNotNull(samlResponse) || isNotNull(samlRequest) || (request != null && request.getUserPrincipal() != null)) {
+        if (isNotNull(samlResponse) || isNotNull(samlRequest)) {
+            Object outcome = invokeAuthenticate(spMechanism, exchange, securityContext);
+            return mapMechanismOutcome(facade, outcome);
+        }
+
+        if (request != null && isGlobalLogout(request)) {
+            if (isAuthenticationRequired(securityContext)) {
+                Object challengeResult = invokeSendChallenge(spMechanism, exchange, securityContext);
+                if (isChallengeSent(challengeResult) || facade.isResponseCommitted()) {
+                    facade.getSessionStore().saveRequest();
+                    return PicketLinkElytronAuthOutcome.AUTHENTICATION_IN_PROGRESS;
+                }
+            }
+            Object outcome = invokeAuthenticate(spMechanism, exchange, securityContext);
+            return mapMechanismOutcome(facade, outcome);
+        }
+
+        if (request != null && isLocalLogout(request)) {
+            Object outcome = invokeAuthenticate(spMechanism, exchange, securityContext);
+            return mapMechanismOutcome(facade, outcome);
+        }
+
+        if (request != null && request.getUserPrincipal() != null) {
             Object outcome = invokeAuthenticate(spMechanism, exchange, securityContext);
             return mapMechanismOutcome(facade, outcome);
         }
@@ -227,6 +249,11 @@ public final class PicketLinkElytronSamlAuthenticator {
     private static boolean isGlobalLogout(HttpServletRequest request) {
         String gloStr = request.getParameter(GeneralConstants.GLOBAL_LOGOUT);
         return gloStr != null && "true".equalsIgnoreCase(gloStr);
+    }
+
+    private static boolean isLocalLogout(HttpServletRequest request) {
+        String lloStr = request.getParameter(GeneralConstants.LOCAL_LOGOUT);
+        return lloStr != null && "true".equalsIgnoreCase(lloStr);
     }
 
     private static boolean isNotNull(String value) {

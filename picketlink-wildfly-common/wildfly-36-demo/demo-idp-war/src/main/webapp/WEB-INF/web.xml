@@ -22,6 +22,7 @@
             <url-pattern>/api/*</url-pattern>
             <url-pattern>/app/*</url-pattern>
             <url-pattern>/FormLoginServlet</url-pattern>
+            <url-pattern>/LogoutServlet</url-pattern>
         </web-resource-collection>
     </security-constraint>
 
@@ -63,6 +64,15 @@
     <servlet-mapping>
         <servlet-name>idpRoot</servlet-name>
         <url-pattern>/*</url-pattern>
+    </servlet-mapping>
+
+    <servlet>
+        <servlet-name>logoutPage</servlet-name>
+        <servlet-class>org.picketlink.demo.shared.DemoLogoutServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>logoutPage</servlet-name>
+        <url-pattern>/LogoutServlet</url-pattern>
     </servlet-mapping>
 
     <servlet>
