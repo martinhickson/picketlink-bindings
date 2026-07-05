@@ -1,0 +1,18 @@
+0 verbose cli /usr/share/cursor/resources/app/resources/helpers/node /home/mhickson/.nvm/versions/node/v24.11.0/bin/npm
+1 info using npm@11.6.1
+2 info using node@v22.22.0
+3 silly config load:file:/home/mhickson/.nvm/versions/node/v24.11.0/lib/node_modules/npm/npmrc
+4 silly config load:file:/home/mhickson/work/picketlink-plan/picketlink-bindings/picketlink-wildfly-common/wildfly-36-oidc-demo/rp-ui/.npmrc
+5 silly config load:file:/home/mhickson/work/picketlink-plan/picketlink-bindings/picketlink-wildfly-common/wildfly-36-oidc-demo/rp-ui/wildfly-rp/.npmrc
+6 silly config load:file:/usr/share/cursor/resources/app/resources/etc/npmrc
+7 verbose title npm run build
+8 verbose argv "run" "build"
+9 verbose logfile logs-max:10 dir:/home/mhickson/work/picketlink-plan/picketlink-bindings/picketlink-wildfly-common/wildfly-36-oidc-demo/rp-ui/wildfly-rp/.npm/_logs/2026-07-03T03_30_16_605Z-
+10 verbose logfile /home/mhickson/work/picketlink-plan/picketlink-bindings/picketlink-wildfly-common/wildfly-36-oidc-demo/rp-ui/wildfly-rp/.npm/_logs/2026-07-03T03_30_16_605Z-debug-0.log
+11 silly logfile done cleaning log files
+12 verbose cwd /home/mhickson/work/picketlink-plan/picketlink-bindings/picketlink-wildfly-common/wildfly-36-oidc-demo/rp-ui
+13 verbose os Linux 6.17.0-35-generic
+14 verbose node v22.22.0
+15 verbose npm  v11.6.1
+16 verbose exit 1
+17 verbose code 1

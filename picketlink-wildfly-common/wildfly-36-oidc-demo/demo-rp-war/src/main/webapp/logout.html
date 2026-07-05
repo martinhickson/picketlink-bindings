@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <title>Logged out</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 2rem; background: #f5f7fb; color: #1f2937; }
+    .card { background: white; border-radius: 12px; padding: 1.25rem; max-width: 640px; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+    a { color: #2563eb; margin-right: 1rem; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Logged out</h1>
+    <p>Your OIDC session at the Relying Party has ended. If you used global logout, the Authorization Server session has also ended.</p>
+    <p>
+      <a href="app/secured">Sign in again</a>
+      <a href="app/admin">Admin / OIDC metadata</a>
+      <a href="app/">Home</a>
+    </p>
+  </div>
+</body>
+</html>

@@ -33,7 +33,7 @@
   </licenses>
 
   <properties>
-    <picketlink.version>2.5.5.jakarta.bravura.8</picketlink.version>
+    <picketlink.version>3.0.1</picketlink.version>
     <jboss.releases.repo.url>https://repository.jboss.org/nexus/service/local/staging/deploy/maven2/
     </jboss.releases.repo.url>
     <jboss.snapshots.repo.url>https://repository.jboss.org/nexus/content/repositories/snapshots/
@@ -98,6 +98,13 @@
       <modules>
         <module>picketlink-wildfly-common</module>
         <module>picketlink-wildfly-common/wildfly-36-demo</module>
+      </modules>
+    </profile>
+    <profile>
+      <id>wildfly36-oidc-demo</id>
+      <modules>
+        <module>picketlink-wildfly-common</module>
+        <module>picketlink-wildfly-common/wildfly-36-oidc-demo</module>
       </modules>
     </profile>
     <profile>

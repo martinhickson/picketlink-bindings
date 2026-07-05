@@ -67,3 +67,9 @@ picketlink-bindings/
 /picketlink-wildfly-common/wildfly-36-demo/idp-ui/dist
 /picketlink-wildfly-common/wildfly-36-demo/sp-ui/.angular
 /picketlink-wildfly-common/wildfly-36-demo/sp-ui/dist
+/picketlink-wildfly-common/wildfly-36-oidc-demo/as-ui/node_modules/
+/picketlink-wildfly-common/wildfly-36-oidc-demo/rp-ui/node_modules/
+/picketlink-wildfly-common/wildfly-36-oidc-demo/as-ui/.angular
+/picketlink-wildfly-common/wildfly-36-oidc-demo/as-ui/dist
+/picketlink-wildfly-common/wildfly-36-oidc-demo/rp-ui/.angular
+/picketlink-wildfly-common/wildfly-36-oidc-demo/rp-ui/dist

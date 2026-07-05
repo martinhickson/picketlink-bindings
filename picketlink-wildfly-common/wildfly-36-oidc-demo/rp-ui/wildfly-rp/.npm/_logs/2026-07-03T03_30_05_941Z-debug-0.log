@@ -1,0 +1,18 @@
+0 verbose cli /home/mhickson/work/picketlink-plan/picketlink-bindings/picketlink-wildfly-common/wildfly-36-oidc-demo/demo-rp-war/target/node/node/node /home/mhickson/work/picketlink-plan/picketlink-bindings/picketlink-wildfly-common/wildfly-36-oidc-demo/demo-rp-war/target/node/node/node_modules/npm/bin/npm-cli.js
+1 info using npm@10.9.2
+2 info using node@v22.12.0
+3 silly config load:file:/home/mhickson/work/picketlink-plan/picketlink-bindings/picketlink-wildfly-common/wildfly-36-oidc-demo/demo-rp-war/target/node/node/node_modules/npm/npmrc
+4 silly config load:file:/home/mhickson/work/picketlink-plan/picketlink-bindings/picketlink-wildfly-common/wildfly-36-oidc-demo/rp-ui/.npmrc
+5 silly config load:file:/home/mhickson/work/picketlink-plan/picketlink-bindings/picketlink-wildfly-common/wildfly-36-oidc-demo/rp-ui/wildfly-rp/.npmrc
+6 silly config load:file:/home/mhickson/work/picketlink-plan/picketlink-bindings/picketlink-wildfly-common/wildfly-36-oidc-demo/demo-rp-war/target/node/etc/npmrc
+7 verbose title npm run build --base-href /demo-rp/app/
+8 verbose argv "run" "build" "--" "--base-href" "/demo-rp/app/"
+9 verbose logfile logs-max:10 dir:/home/mhickson/work/picketlink-plan/picketlink-bindings/picketlink-wildfly-common/wildfly-36-oidc-demo/rp-ui/wildfly-rp/.npm/_logs/2026-07-03T03_30_05_941Z-
+10 verbose logfile /home/mhickson/work/picketlink-plan/picketlink-bindings/picketlink-wildfly-common/wildfly-36-oidc-demo/rp-ui/wildfly-rp/.npm/_logs/2026-07-03T03_30_05_941Z-debug-0.log
+11 silly logfile done cleaning log files
+12 verbose cwd /home/mhickson/work/picketlink-plan/picketlink-bindings/picketlink-wildfly-common/wildfly-36-oidc-demo/rp-ui
+13 verbose os Linux 6.17.0-35-generic
+14 verbose node v22.12.0
+15 verbose npm  v10.9.2
+16 verbose exit 1
+17 verbose code 1
