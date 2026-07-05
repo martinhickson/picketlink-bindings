@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>org.picketlink</groupId>
+    <artifactId>picketlink-bindings-parent</artifactId>
+    <version>2.5.5.jdk17.1</version>
+    <relativePath>../../pom.xml</relativePath>
+  </parent>
+
+  <artifactId>picketlink-wildfly36-oidc-demo</artifactId>
+  <packaging>pom</packaging>
+  <name>PicketLink WildFly 36 OIDC Demo</name>
+  <description>Dual WildFly demo with OIDC Authorization Code flow (CXF AS + RP)</description>
+
+  <modules>
+    <module>demo-oidc-shared</module>
+    <module>demo-as-war</module>
+    <module>demo-rp-war</module>
+    <module>demo-it</module>
+  </modules>
+
+  <properties>
+    <wildfly.version>36.0.1.Final</wildfly.version>
+    <cxf.version>4.0.5</cxf.version>
+    <node.version>v22.22.3</node.version>
+    <npm.version>11.16.0</npm.version>
+    <frontend-maven-plugin.version>1.15.1</frontend-maven-plugin.version>
+    <demo.as.host>127.0.0.102</demo.as.host>
+    <demo.rp.host>127.0.0.101</demo.rp.host>
+    <demo.http.port>8080</demo.http.port>
+    <demo.mgmt.port>9990</demo.mgmt.port>
+    <demo.keep.alive.minutes>30</demo.keep.alive.minutes>
+    <demo.keep.alive>false</demo.keep.alive>
+    <demo.as.jboss.home>${project.build.directory}/wildfly-as</demo.as.jboss.home>
+    <demo.rp.jboss.home>${project.build.directory}/wildfly-rp</demo.rp.jboss.home>
+    <picketlink.test.keystore.path>${demo.as.jboss.home}/standalone/configuration/jbid_test_keystore.jks</picketlink.test.keystore.path>
+    <junit.version>4.13.2</junit.version>
+    <httpcomponents.version>4.5.14</httpcomponents.version>
+  </properties>
+
+  <dependencyManagement>
+    <dependencies>
+      <dependency>
+        <groupId>org.apache.cxf</groupId>
+        <artifactId>cxf-bom</artifactId>
+        <version>${cxf.version}</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+    </dependencies>
+  </dependencyManagement>
+
+  <profiles>
+    <profile>
+      <id>demo-keep-alive</id>
+      <properties>
+        <demo.keep.alive>true</demo.keep.alive>
+      </properties>
+    </profile>
+  </profiles>
+</project>

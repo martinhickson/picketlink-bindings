@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<web-app xmlns="https://jakarta.ee/xml/ns/jakartaee"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="https://jakarta.ee/xml/ns/jakartaee https://jakarta.ee/xml/ns/jakartaee/web-app_6_0.xsd"
+         version="6.0">
+
+    <display-name>PicketLink OIDC Relying Party</display-name>
+
+    <context-param>
+        <param-name>demo.base.url</param-name>
+        <param-value>@demo.rp.base.url@</param-value>
+    </context-param>
+    <context-param>
+        <param-name>demo.as.base.url</param-name>
+        <param-value>@demo.as.base.url@</param-value>
+    </context-param>
+
+    <servlet>
+        <servlet-name>rpCxf</servlet-name>
+        <servlet-class>org.picketlink.demo.rp.RpCxfServlet</servlet-class>
+        <load-on-startup>1</load-on-startup>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>rpCxf</servlet-name>
+        <url-pattern>/api/*</url-pattern>
+    </servlet-mapping>
+    <servlet-mapping>
+        <servlet-name>rpCxf</servlet-name>
+        <url-pattern>/oidc/*</url-pattern>
+    </servlet-mapping>
+
+    <servlet>
+        <servlet-name>rpLogout</servlet-name>
+        <servlet-class>org.picketlink.demo.oidc.shared.DemoOidcRpLogoutServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>rpLogout</servlet-name>
+        <url-pattern>/LogoutServlet</url-pattern>
+    </servlet-mapping>
+
+    <servlet>
+        <servlet-name>rpRoot</servlet-name>
+        <servlet-class>org.picketlink.demo.oidc.shared.DemoRootServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>rpRoot</servlet-name>
+        <url-pattern>/</url-pattern>
+    </servlet-mapping>
+
+    <servlet>
+        <servlet-name>spaFallback</servlet-name>
+        <servlet-class>org.picketlink.demo.oidc.shared.SpaFallbackServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>spaFallback</servlet-name>
+        <url-pattern>/app/*</url-pattern>
+    </servlet-mapping>
+
+    <welcome-file-list>
+        <welcome-file>app/index.html</welcome-file>
+    </welcome-file-list>
+</web-app>

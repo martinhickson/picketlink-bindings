@@ -1,0 +1,136 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<web-app xmlns="https://jakarta.ee/xml/ns/jakartaee"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="https://jakarta.ee/xml/ns/jakartaee https://jakarta.ee/xml/ns/jakartaee/web-app_6_0.xsd"
+         version="6.0">
+
+    <display-name>PicketLink OIDC Authorization Server</display-name>
+
+    <context-param>
+        <param-name>demo.base.url</param-name>
+        <param-value>@demo.as.base.url@</param-value>
+    </context-param>
+    <context-param>
+        <param-name>demo.rp.base.url</param-name>
+        <param-value>@demo.rp.base.url@</param-value>
+    </context-param>
+    <context-param>
+        <param-name>demo.rp.redirect.uri</param-name>
+        <param-value>@demo.rp.redirect.uri@</param-value>
+    </context-param>
+
+    <security-constraint>
+        <web-resource-collection>
+            <web-resource-name>Public AS endpoints</web-resource-name>
+            <url-pattern>/app/*</url-pattern>
+            <url-pattern>/api/info</url-pattern>
+            <url-pattern>/api/keys</url-pattern>
+            <url-pattern>/.well-known/*</url-pattern>
+            <url-pattern>/oidc/token</url-pattern>
+            <url-pattern>/oidc/jwks</url-pattern>
+            <url-pattern>/oidc/userinfo</url-pattern>
+            <url-pattern>/FormLoginServlet</url-pattern>
+            <url-pattern>/idp/logout</url-pattern>
+        </web-resource-collection>
+    </security-constraint>
+
+    <security-constraint>
+        <web-resource-collection>
+            <web-resource-name>OIDC key rotation (admin)</web-resource-name>
+            <url-pattern>/api/keys/rotate</url-pattern>
+            <http-method>POST</http-method>
+        </web-resource-collection>
+        <auth-constraint>
+            <role-name>role1</role-name>
+        </auth-constraint>
+    </security-constraint>
+
+    <security-constraint>
+        <web-resource-collection>
+            <web-resource-name>OIDC authorize (requires login)</web-resource-name>
+            <url-pattern>/oidc/authorize</url-pattern>
+        </web-resource-collection>
+        <auth-constraint>
+            <role-name>role1</role-name>
+        </auth-constraint>
+    </security-constraint>
+
+    <login-config>
+        <auth-method>FORM</auth-method>
+        <form-login-config>
+            <form-login-page>/FormLoginServlet</form-login-page>
+            <form-error-page>/FormLoginServlet</form-error-page>
+        </form-login-config>
+    </login-config>
+
+    <security-role>
+        <role-name>role1</role-name>
+    </security-role>
+
+    <servlet>
+        <servlet-name>loginPage</servlet-name>
+        <servlet-class>org.picketlink.demo.oidc.shared.AsFormLoginServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>loginPage</servlet-name>
+        <url-pattern>/FormLoginServlet</url-pattern>
+    </servlet-mapping>
+
+    <servlet>
+        <servlet-name>asLogout</servlet-name>
+        <servlet-class>org.picketlink.demo.oidc.shared.DemoAsLogoutServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>asLogout</servlet-name>
+        <url-pattern>/LogoutServlet</url-pattern>
+    </servlet-mapping>
+
+    <servlet>
+        <servlet-name>oidcEndSession</servlet-name>
+        <servlet-class>org.picketlink.demo.oidc.shared.DemoOidcEndSessionServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>oidcEndSession</servlet-name>
+        <url-pattern>/idp/logout</url-pattern>
+    </servlet-mapping>
+
+    <servlet>
+        <servlet-name>asCxf</servlet-name>
+        <servlet-class>org.picketlink.demo.as.AsCxfServlet</servlet-class>
+        <load-on-startup>1</load-on-startup>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>asCxf</servlet-name>
+        <url-pattern>/api/*</url-pattern>
+    </servlet-mapping>
+    <servlet-mapping>
+        <servlet-name>asCxf</servlet-name>
+        <url-pattern>/oidc/*</url-pattern>
+    </servlet-mapping>
+    <servlet-mapping>
+        <servlet-name>asCxf</servlet-name>
+        <url-pattern>/.well-known/*</url-pattern>
+    </servlet-mapping>
+
+    <servlet>
+        <servlet-name>oidcAdminUi</servlet-name>
+        <servlet-class>org.picketlink.auth.oauth.servlet.VirtualResourcesServlet</servlet-class>
+        <init-param>
+            <param-name>urlBase</param-name>
+            <param-value>/app</param-value>
+        </init-param>
+        <init-param>
+            <param-name>resourceBase</param-name>
+            <param-value>META-INF/resources/oidc-admin-ui</param-value>
+        </init-param>
+        <init-param>
+            <param-name>adminUiEnabled</param-name>
+            <param-value>true</param-value>
+        </init-param>
+        <load-on-startup>2</load-on-startup>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>oidcAdminUi</servlet-name>
+        <url-pattern>/app/*</url-pattern>
+    </servlet-mapping>
+</web-app>

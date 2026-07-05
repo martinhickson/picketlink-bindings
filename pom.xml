@@ -101,6 +101,13 @@
       </modules>
     </profile>
     <profile>
+      <id>wildfly36-oidc-demo</id>
+      <modules>
+        <module>picketlink-wildfly-common</module>
+        <module>picketlink-wildfly-common/wildfly-36-oidc-demo</module>
+      </modules>
+    </profile>
+    <profile>
       <id>release</id>
       <activation>
         <property>
