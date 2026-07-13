@@ -7,6 +7,10 @@ on:
         description: "Release version"
         required: true
         default: "2.5.5.jakarta.bravura.8"
+      picketlink_version:
+        description: "PicketLink dependency version (picketlink.version property)"
+        required: true
+        default: "3.0.1"
       dependency_repository_name:
         description: "Repository name under same owner that hosts Maven packages"
         required: true
@@ -33,6 +37,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       RELEASE_VERSION: ${{ github.event.inputs.version }}
+      PICKETLINK_VERSION: ${{ github.event.inputs.picketlink_version }}
       RELEASE_BRANCH: release/${{ github.event.inputs.version }}
       RELEASE_TAG: v${{ github.event.inputs.version }}
       DEPENDENCY_REPOSITORY: https://maven.pkg.github.com/${{ github.repository_owner }}/${{ github.event.inputs.dependency_repository_name }}
@@ -165,6 +170,10 @@ jobs:
             -DprocessAllModules=true \
             -DgenerateBackupPoms=false
           mvn -B -ntp versions:update-child-modules -DgenerateBackupPoms=false
+          mvn -B -ntp versions:set-property \
+            -Dproperty=picketlink.version \
+            -DnewVersion="${PICKETLINK_VERSION}" \
+            -DgenerateBackupPoms=false
 
       - name: Commit release version updates
         run: |
@@ -172,7 +181,7 @@ jobs:
           if git diff --cached --quiet; then
             echo "No pom version changes to commit."
           else
-            git commit -m "Release ${RELEASE_VERSION}: set Maven project versions"
+            git commit -m "Release ${RELEASE_VERSION}: set Maven project versions (picketlink.version=${PICKETLINK_VERSION})"
           fi
 
       - name: Create release tag
@@ -185,6 +194,7 @@ jobs:
           GITHUB_ACTOR: ${{ github.actor }}
         run: |
           mvn -B -ntp -DskipTests -Dgpg.skip=true deploy \
+            -Dpicketlink.version="${PICKETLINK_VERSION}" \
             -DaltDeploymentRepository=github::default::https://maven.pkg.github.com/${{ github.repository }}
 
       - name: Push release branch and tag
