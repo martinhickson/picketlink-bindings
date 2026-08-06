@@ -14,7 +14,6 @@
         <ValidatingAlias Key="localhost" Value="servercert"/>
         <SigningAlias>servercert</SigningAlias>
     </KeyProvider>
-    <MetaDataProvider ClassName="org.picketlink.identity.federation.core.saml.md.providers.IDPMetadataProvider">
-        <Option Key="EntityId" Value="http://localhost:${test.http.port}/idp-metadata-generated/"/>
-    </MetaDataProvider>
+    <!-- EntityId omitted: IDPMetadataProvider defaults it to IdentityURL -->
+    <MetaDataProvider ClassName="org.picketlink.identity.federation.core.saml.md.providers.IDPMetadataProvider"/>
 </PicketLinkIDP>

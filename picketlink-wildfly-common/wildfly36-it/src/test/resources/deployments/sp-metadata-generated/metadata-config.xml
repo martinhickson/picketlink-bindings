@@ -13,8 +13,7 @@
             <ValidatingAlias Key="localhost" Value="servercert"/>
             <SigningAlias>servercert</SigningAlias>
         </KeyProvider>
-        <MetaDataProvider ClassName="org.picketlink.identity.federation.core.saml.md.providers.SPMetadataProvider">
-            <Option Key="EntityId" Value="http://localhost:${test.http.port}/sp-metadata-generated/"/>
-        </MetaDataProvider>
+        <!-- EntityId omitted: SPMetadataProvider defaults it to ServiceURL -->
+        <MetaDataProvider ClassName="org.picketlink.identity.federation.core.saml.md.providers.SPMetadataProvider"/>
     </PicketLinkSP>
 </PicketLink>
