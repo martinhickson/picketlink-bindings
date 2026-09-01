@@ -33,7 +33,7 @@
   </licenses>
 
   <properties>
-    <picketlink.version>3.0.1</picketlink.version>
+    <picketlink.version>2.5.5.jdk17.1</picketlink.version>
     <jboss.releases.repo.url>https://repository.jboss.org/nexus/service/local/staging/deploy/maven2/
     </jboss.releases.repo.url>
     <jboss.snapshots.repo.url>https://repository.jboss.org/nexus/content/repositories/snapshots/
@@ -59,7 +59,6 @@
       <id>eap6</id>
       <modules>
         <module>picketlink-tomcat-common</module>
-        <module>picketlink-tomcat5</module>
         <module>picketlink-jbas-common</module>
         <module>picketlink-jbas7</module>
         <module>build-jbas7</module>
