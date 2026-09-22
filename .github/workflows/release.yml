@@ -261,7 +261,7 @@ jobs:
                 <password>${MAVEN_CENTRAL_PASSWORD}</password>\\
               </server>" "${HOME}/.m2/settings.xml"
           echo "${MAVEN_CENTRAL_GPG_PRIVATE_KEY}" | gpg --batch --import --pinentry-mode loopback
-          mvn -B -ntp deploy -Pcentral-release -DskipTests \
+          mvn -B -ntp deploy -Pcentral-release,all -DskipTests \
             -Dpicketlink.version="${PICKETLINK_VERSION}" \
             -Dmaven.javadoc.failOnError=false \
             -Dgpg.passphrase="${MAVEN_CENTRAL_GPG_PASSPHRASE}"
