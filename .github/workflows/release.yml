@@ -178,9 +178,12 @@ jobs:
         run: |
           mvn -B -ntp versions:set \
             -DnewVersion="${RELEASE_VERSION}" \
+            -Dpicketlink.version="${PICKETLINK_VERSION}" \
             -DprocessAllModules=true \
             -DgenerateBackupPoms=false
-          mvn -B -ntp versions:update-child-modules -DgenerateBackupPoms=false
+          mvn -B -ntp versions:update-child-modules \
+            -Dpicketlink.version="${PICKETLINK_VERSION}" \
+            -DgenerateBackupPoms=false
           mvn -B -ntp versions:set-property \
             -Dproperty=picketlink.version \
             -DnewVersion="${PICKETLINK_VERSION}" \
