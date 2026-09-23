@@ -13,6 +13,28 @@ import java.util.concurrent.TimeUnit;
 
 public final class WildFlyServer {
 
+    /**
+     * {@code $1} JBOSS_HOME, {@code $2} agent jar, {@code $3} bridge jar, then {@code standalone.sh}.
+     * The bridge jar is on the boot classpath so the deployment and the agent share one class.
+     * {@code MODULE_OPTS} makes WildFly install the log manager before it runs the agent.
+     */
+    static final String AGENT_LAUNCH = """
+            export JBOSS_HOME="$1"
+            AGENT="$2"
+            BRIDGE="$3"
+            shift 3
+            case ",${JBOSS_MODULES_SYSTEM_PKGS:-org.jboss.byteman}," in
+              *,org.picketlink.oidc.keystore.bridge,*) ;;
+              *) export JBOSS_MODULES_SYSTEM_PKGS="${JBOSS_MODULES_SYSTEM_PKGS:-org.jboss.byteman},org.picketlink.oidc.keystore.bridge" ;;
+            esac
+            export MODULE_OPTS="-javaagent:${AGENT}"
+            unset JAVA_OPTS
+            . "$JBOSS_HOME/bin/standalone.conf"
+            JAVA_OPTS="-Xbootclasspath/a:${BRIDGE} ${JAVA_OPTS}"
+            export JAVA_OPTS
+            exec "$@"
+            """;
+
     private final String name;
     private final Path jbossHome;
     private final String bindAddress;
@@ -49,13 +71,19 @@ public final class WildFlyServer {
         command.add(bindAddress);
         command.add("-Djboss.socket.binding.port-offset=" + portOffset);
         command.add("-Dpicketlink.test.keystore.path=" + keystore);
+        if (keystoreAgent != null && !keystoreAgent.isBlank() && Files.exists(Path.of(keystoreAgent))) {
+            Path bridge = Path.of(keystoreAgent).resolveSibling("picketlink-oidc-keystore-bridge.jar");
+            command.add(0, bridge.toString());
+            command.add(0, keystoreAgent);
+            command.add(0, jbossHome.toString());
+            command.add(0, "bash");
+            command.add(0, AGENT_LAUNCH);
+            command.add(0, "-c");
+            command.add(0, "bash");
+        }
         builder.command(command);
         builder.directory(jbossHome.toFile());
         builder.environment().put("JBOSS_HOME", jbossHome.toString());
-        if (keystoreAgent != null && !keystoreAgent.isBlank() && Files.exists(Path.of(keystoreAgent))) {
-            String javaOpts = builder.environment().getOrDefault("JAVA_OPTS", "");
-            builder.environment().put("JAVA_OPTS", javaOpts + " -javaagent:" + keystoreAgent);
-        }
         builder.redirectErrorStream(true);
         process = builder.start();
         drainOutput(process.getInputStream(), name);

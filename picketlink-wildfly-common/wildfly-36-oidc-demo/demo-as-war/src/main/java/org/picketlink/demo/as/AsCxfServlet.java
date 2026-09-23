@@ -47,7 +47,7 @@ public class AsCxfServlet extends CXFNonSpringServlet {
                     OidcDemoConstants.KEYSTORE_ALIAS,
                     OidcDemoConstants.KEYSTORE_TYPE);
         }
-        OidcAuthorizationServerConfig config = OidcAuthorizationServerConfig.builder(baseUrl)
+        OidcAuthorizationServerConfig.Builder configBuilder = OidcAuthorizationServerConfig.builder(baseUrl)
                 .client(OidcClientRegistration.builder(
                         OidcDemoConstants.CLIENT_ID, OidcDemoConstants.CLIENT_SECRET)
                         .redirectUri(rpRedirectUri)
@@ -62,8 +62,19 @@ public class AsCxfServlet extends CXFNonSpringServlet {
                         OidcDemoConstants.DEMO_USERNAME,
                         OidcDemoConstants.DEMO_PASSWORD,
                         List.of(OidcDemoConstants.DEMO_ROLE)))
-                .keystore(keystore)
-                .build();
+                .keystore(keystore);
+        String hotelRedirect = servletConfig.getServletContext().getInitParameter("demo.hotel.redirect.uri");
+        if (hotelRedirect != null && !hotelRedirect.isBlank() && !hotelRedirect.contains("@")) {
+            configBuilder.client(OidcClientRegistration.builder("seam-booking", "seam-booking-secret")
+                    .redirectUri(hotelRedirect)
+                    .scope(OidcDemoConstants.OPENID_SCOPE)
+                    .scope(OidcDemoConstants.PROFILE_SCOPE)
+                    .grantType("authorization_code")
+                    .grantType("refresh_token")
+                    .applicationName("Seam Booking")
+                    .build());
+        }
+        OidcAuthorizationServerConfig config = configBuilder.build();
         OidcAuthorizationServerBootstrap.mount(getBus(), config, Arrays.asList(
                 new DemoInfoResource("OIDC-AS", baseUrl, links)));
     }

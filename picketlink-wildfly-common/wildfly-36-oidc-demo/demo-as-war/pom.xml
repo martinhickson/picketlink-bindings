@@ -19,6 +19,7 @@
     <demo.as.base.url>http://${demo.as.host}:${demo.http.port}${demo.as.context}/</demo.as.base.url>
     <demo.rp.base.url>http://${demo.rp.host}:${demo.http.port}/demo-rp/</demo.rp.base.url>
     <demo.rp.redirect.uri>${demo.rp.base.url}oidc/callback</demo.rp.redirect.uri>
+    <demo.hotel.redirect.uri></demo.hotel.redirect.uri>
   </properties>
 
   <dependencies>

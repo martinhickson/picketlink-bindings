@@ -18,6 +18,10 @@
         <param-name>demo.rp.redirect.uri</param-name>
         <param-value>@demo.rp.redirect.uri@</param-value>
     </context-param>
+    <context-param>
+        <param-name>demo.hotel.redirect.uri</param-name>
+        <param-value>@demo.hotel.redirect.uri@</param-value>
+    </context-param>
 
     <security-constraint>
         <web-resource-collection>
