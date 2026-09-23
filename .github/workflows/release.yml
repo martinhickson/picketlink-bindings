@@ -187,6 +187,7 @@ jobs:
           mvn -B -ntp versions:set-property \
             -Dproperty=picketlink.version \
             -DnewVersion="${PICKETLINK_VERSION}" \
+            -Dpicketlink.version="${PICKETLINK_VERSION}" \
             -DgenerateBackupPoms=false
 
       - name: Commit release version updates
