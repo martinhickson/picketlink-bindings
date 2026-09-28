@@ -14,8 +14,8 @@
   <properties>
     <version.cxf>4.1.7</version.cxf>
     <jakarta.servlet-api.version>6.0.0</jakarta.servlet-api.version>
-    <picketbox.version>5.2.1</picketbox.version>
-    <jbossxacml.version>5.2.1</jbossxacml.version>
+    <picketbox.version>5.2.2</picketbox.version>
+    <jbossxacml.version>5.2.2</jbossxacml.version>
     <wildfly.version>30.0.1.Final</wildfly.version>
     <undertow.io.version>2.3.13.Final</undertow.io.version>
     <httpcomponents.version>4.2.5</httpcomponents.version>
